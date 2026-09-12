@@ -8,6 +8,7 @@ class UserAdmin(BaseUserAdmin):
     model = User
     list_display = ("email", "full_name", "role", "status", "is_staff")
     list_filter = ("role", "status", "is_staff")
+    search_fields = ("email", "full_name")
     ordering = ("email",)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
