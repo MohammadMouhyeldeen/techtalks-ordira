@@ -93,5 +93,32 @@ class DeliveryZone(models.Model):
         return f"{self.shop.name} - {self.area_name}"
 
 
+class ShopPaymentMethod(models.Model):
+    class MethodName(models.TextChoices):
+        CASH = "CASH", "Cash"
+        WHISH = "WHISH", "Whish"
+        OMT = "OMT", "OMT"
+        BANK_TRANSFER = "BANK_TRANSFER", "Bank Transfer"
 
+    shop = models.ForeignKey(
+        Shop,
+        on_delete=models.CASCADE,
+        related_name="payment_methods",
+    )
+    method_name = models.CharField(
+        max_length=30,
+        choices=MethodName.choices,
+    )
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["shop", "method_name"],
+                name="unique_payment_method_per_shop",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.shop.name} - {self.get_method_name_display()}"
   
