@@ -25,7 +25,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path(
         "",
-        TemplateView.as_view(template_name="landing.html"),
+        TemplateView.as_view(template_name="landing/landing.html"),
         name="home",
     ),
 ]
