@@ -87,24 +87,56 @@ The `.env` file contains private credentials and is ignored by Git. Never commit
 
 The `.env.example` file contains only safe example values and remains in the repository to show developers which environment variables are required.
 
-### 7. Verify the Django configuration
+### 7. Apply the database migrations
+
+Create the required tables in the local PostgreSQL database:
+
+```powershell
+python manage.py migrate
+```
+
+### 8. Verify the Django configuration
 
 ```powershell
 python manage.py check
+python manage.py makemigrations --check --dry-run
 ```
 
-To verify the PostgreSQL connection without running migrations:
-
-```powershell
-python manage.py shell -c "from django.db import connection; connection.ensure_connection(); print('Connected to:', connection.vendor, connection.settings_dict['NAME'])"
-```
-
-Expected result:
+Expected results:
 
 ```text
-Connected to: postgresql ordira_db
+System check identified no issues
+No changes detected
 ```
 
-## Migration Notice
+### 9. Run the development server
 
-Do not create or apply the initial migrations until the custom user model and the required database models have been finalized and merged into `develop`.
+```powershell
+python manage.py runserver
+```
+
+Open the application at:
+
+```text
+http://127.0.0.1:8000/
+```
+
+## Database Schema
+
+The initial Ordira database schema includes:
+
+- **Accounts:** User
+- **Shops:** Shop, Subscription, DeliveryZone, ShopPaymentMethod
+- **Products:** Category, Product, ProductVariant, StockMovement
+- **Customers:** Customer
+- **Orders:** Order, OrderItem
+- **Payments:** Payment, Invoice
+- **Notifications:** Notification
+
+The schema includes foreign-key relationships, uniqueness constraints, product and checkout snapshots, stock tracking, delivery options, and manual payment tracking.
+
+## Uploaded Media
+
+Shop logos and product images are stored locally inside the `media/` directory during development.
+
+The `media/` directory is ignored by Git. Only the file paths are stored in PostgreSQL; uploaded image files are not stored directly in the database.
