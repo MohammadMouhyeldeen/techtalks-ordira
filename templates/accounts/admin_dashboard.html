@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Pending | Ordira</title>
+    <title>Admin Dashboard | Ordira</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234B3CF0'/%3E%3Cpath d='M18 33l9 9 19-19' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,22 +23,21 @@
             </div>
 
             <div class="status-body">
-                <div class="status-icon status-icon-pending">
+                <div class="status-icon status-icon-success">
                     <svg viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
-                        <path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 3l8 3v6c0 5-3.5 7.9-8 9-4.5-1.1-8-4-8-9V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h1>Account pending approval</h1>
+                <h1>Admin Dashboard</h1>
                 <p>
-                    Your registration was received successfully.
-                    An administrator must approve your account before you can access Ordira.
-                    We'll notify you once your account is activated.
+                    The admin dashboard is under construction.
+                    User management and approvals are coming in the next sprint.
                 </p>
 
                 <form method="post" action="{% url 'accounts:logout' %}" class="logout-form">
                     {% csrf_token %}
-                    <button type="submit" class="btn-auth btn-auth-outline" id="logout-pending">
+                    <button type="submit" class="btn-auth btn-auth-outline" id="logout-admin">
                         Log out
                     </button>
                 </form>
