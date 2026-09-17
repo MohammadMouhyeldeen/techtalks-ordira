@@ -1,0 +1,24 @@
+<!--
+  Lightweight storefront navbar for customer-facing pages.
+  Deliberately has NO dashboard/merchant nav links — just the shop's
+  identity. Swap-in later: pass a real `shop` object (with .name / .logo)
+  from the view; the conditional fallbacks below can then be dropped.
+-->
+<header class="site-header storefront-header" id="storefrontHeader">
+  <div class="container header-inner">
+    <a href="#top" class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        {% if shop.logo %}
+          <img src="{{ shop.logo.url }}" alt="">
+        {% else %}
+          {{ shop.name|default:"Sara's Closet"|first }}
+        {% endif %}
+      </span>
+      {{ shop.name|default:"Sara's Closet" }}
+    </a>
+    <span class="storefront-header__tag">
+      <svg width="14" height="14"><use href="#i-check"/></svg>
+      Secure ordering
+    </span>
+  </div>
+</header>
