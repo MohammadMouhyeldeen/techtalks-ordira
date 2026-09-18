@@ -140,3 +140,30 @@ The schema includes foreign-key relationships, uniqueness constraints, product a
 Shop logos and product images are stored locally inside the `media/` directory during development.
 
 The `media/` directory is ignored by Git. Only the file paths are stored in PostgreSQL; uploaded image files are not stored directly in the database.
+
+
+## New URLs available: /register/, /login/, /logout/, /admin-dashboard/ (placeholder), shops:dashboard (placeholder)
+
+## New settings added: LOGIN_URL and LOGIN_REDIRECT_URL in config/settings.py 
+
+## Known limitation flag: both admin_dashboard.html and shops/dashboard.html are explicit placeholders, not real pages yet.
+
+## How to run the new tests: python manage.py test accounts -v2
+
+## How to create test users
+During development and manual testing, you may need users with specific roles and statuses (e.g. PENDING, SUSPENDED, ACTIVE ADMIN, ACTIVE SHOP_OWNER). 
+To create them properly, use the Django shell:
+```bash
+python manage.py shell
+```
+Then paste the following code to seed the test users:
+```python
+from accounts.models import User
+
+# Example: Create an active admin
+User.objects.create_superuser("admin@example.com", "testpassword123", full_name="Admin")
+
+# Example: Create a pending shop owner
+User.objects.create_user("pending@example.com", "testpassword123", full_name="Pending", status=User.Status.PENDING, role=User.Role.SHOP_OWNER)
+```
+*Note: Always use `User.objects.create_user()` or `create_superuser()` to ensure passwords are automatically hashed. Never set passwords directly without hashing.*
