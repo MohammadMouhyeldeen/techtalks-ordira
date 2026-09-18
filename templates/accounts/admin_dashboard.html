@@ -1,48 +1,157 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard | Ordira</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234B3CF0'/%3E%3Cpath d='M18 33l9 9 19-19' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/accounts/css/auth.css">
-</head>
-<body>
-    <div class="auth-page">
-        <div class="auth-card">
-            <div class="auth-header">
-                <a href="/" class="auth-brand">
-                    <span class="auth-brand-mark" aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </span>
-                    Ordira
-                </a>
-            </div>
+{% extends "accounts/admin_base.html" %}
 
-            <div class="status-body">
-                <div class="status-icon status-icon-success">
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M12 3l8 3v6c0 5-3.5 7.9-8 9-4.5-1.1-8-4-8-9V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </div>
-                <h1>Admin Dashboard</h1>
-                <p>
-                    The admin dashboard is under construction.
-                    User management and approvals are coming in the next sprint.
-                </p>
+{% block title %}Pending Registrations{% endblock %}
+{% block meta_description %}Review and approve or reject pending shop owner registrations.{% endblock %}
 
-                <form method="post" action="{% url 'accounts:logout' %}" class="logout-form">
-                    {% csrf_token %}
-                    <button type="submit" class="btn-auth btn-auth-outline" id="logout-admin">
-                        Log out
-                    </button>
-                </form>
-            </div>
+{% block nav_pending_active %}active{% endblock %}
+{% block nav_pending_aria %}page{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+
+    <header class="admin-page-header">
+        <h1 class="admin-page-title">Pending Registrations</h1>
+        <p class="admin-page-subtitle">
+            {% if page_obj.paginator.count == 1 %}
+                1 account awaiting approval
+            {% elif page_obj.paginator.count > 1 %}
+                {{ page_obj.paginator.count }} accounts awaiting approval
+            {% else %}
+                All caught up — no accounts awaiting approval
+            {% endif %}
+        </p>
+    </header>
+
+    <div class="admin-card">
+
+        {% if page_obj.object_list %}
+
+        <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Pending registrations">
+                <thead>
+                    <tr>
+                        <th scope="col">Name / Email</th>
+                        <th scope="col">Registered</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pending_user in page_obj %}
+                    <tr>
+                        <td>
+                            <div class="admin-table-name">{{ pending_user.full_name }}</div>
+                            <div class="admin-table-email">{{ pending_user.email }}</div>
+                        </td>
+                        <td class="admin-table-date">
+                            {{ pending_user.date_joined|date:"N j, Y" }}
+                            <br>
+                            <span style="font-size:0.8rem;color:var(--ink-300);">
+                                {{ pending_user.date_joined|time:"g:i A" }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-badge-pending">Pending</span>
+                        </td>
+                        <td>
+                            <div class="admin-table-actions">
+
+                                {# Approve — POST-only, CSRF-protected #}
+                                <form method="post"
+                                      action="{% url 'accounts:approve_user' pending_user.pk %}"
+                                      aria-label="Approve {{ pending_user.full_name }}">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-approve"
+                                            id="approve-{{ pending_user.pk }}"
+                                            onclick="return confirm('Approve {{ pending_user.full_name|escapejs }}?')">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Approve
+                                    </button>
+                                </form>
+
+                                {# Reject — label is "Reject", transitions to SUSPENDED #}
+                                <form method="post"
+                                      action="{% url 'accounts:reject_user' pending_user.pk %}"
+                                      aria-label="Reject {{ pending_user.full_name }}">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-reject"
+                                            id="reject-{{ pending_user.pk }}"
+                                            onclick="return confirm('Reject {{ pending_user.full_name|escapejs }}? Their account will be suspended.')">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Reject
+                                    </button>
+                                </form>
+
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-    </div>
-</body>
-</html>
+
+        {# ---- Pagination ---- #}
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Pagination">
+            <span class="admin-pagination-count">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            <div class="admin-pagination-links">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Previous page">&#8592; Prev</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">&#8592; Prev</span>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <span class="admin-pagination-link current" aria-current="page">{{ num }}</span>
+                    {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                        <a href="?page={{ num }}"
+                           class="admin-pagination-link"
+                           aria-label="Page {{ num }}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Next page">Next &#8594;</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">Next &#8594;</span>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+
+        {% else %}
+
+        {# ---- Empty State ---- #}
+        <div class="admin-empty" id="empty-state">
+            <div class="admin-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h2 class="admin-empty-title">No pending registrations</h2>
+            <p class="admin-empty-text">
+                All self-registered accounts have been reviewed.
+                New registrations will appear here automatically.
+            </p>
+        </div>
+
+        {% endif %}
+
+    </div>{# /.admin-card #}
+
+</div>{# /.admin-layout #}
+{% endblock %}
