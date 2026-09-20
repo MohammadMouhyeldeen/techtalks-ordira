@@ -133,33 +133,36 @@
     </div>
 
 
- <!-- =========================
-     ACCOUNT
-========================== -->
+    <!-- =========================
+         ACCOUNT
+    ========================== -->
 
-<div class="sidebar-section">
+    <div class="sidebar-section">
 
-    <div class="sidebar-title">
-        Account
+        <div class="sidebar-title">
+            Account
+        </div>
+
+
+        <a href="#"
+           class="sidebar-link">
+
+            <span class="sidebar-icon">⚙️</span>
+
+            <span>Settings</span>
+
+        </a>
+
+
+        <a href="#"
+           class="sidebar-link">
+
+            <span class="sidebar-icon">🚪</span>
+
+            <span>Logout</span>
+
+        </a>
+
     </div>
 
-    <a href="#"
-       class="sidebar-link">
-
-        <span class="sidebar-icon">⚙️</span>
-
-        <span>Settings</span>
-
-    </a>
-
-
-    <form method="post" action="{% url 'accounts:logout' %}">
-        {% csrf_token %}
-
-        <button type="submit" class="sidebar-link">
-            <span class="sidebar-icon">🚪</span>
-            <span>Logout</span>
-        </button>
-    </form>
-
-</div>
+</aside>
