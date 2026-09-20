@@ -1691,3 +1691,429 @@ class AdminCreateUserConcurrencyTests(TransactionTestCase):
             )
             status_codes = [resp.status_code for resp in results]
             self.assertCountEqual(status_codes, [200, 302])
+
+
+# ---------------------------------------------------------------------------
+# SCRUM-41 Part B: Reissue link + Active Accounts section
+# ---------------------------------------------------------------------------
+
+
+class AdminReissueTests(TestCase):
+    """
+    Tests for admin_reissue_link (AC10) and the Active Accounts section.
+
+    Permission grid: anonymous, PENDING owner, SUSPENDED owner,
+    ACTIVE SHOP_OWNER, PENDING ADMIN, SUSPENDED ADMIN, ACTIVE ADMIN.
+    """
+
+    # ------------------------------------------------------------------ helpers
+
+    def _make_admin(self, email="admin@example.com"):
+        return User.objects.create_user(
+            email=email,
+            password="AdminPass123!",
+            full_name="Platform Admin",
+            role=User.Role.ADMIN,
+            status=User.Status.ACTIVE,
+        )
+
+    def _make_target(self, email="target@example.com"):
+        """Create an ACTIVE SHOP_OWNER to be the reissue target."""
+        return User.objects.create_user(
+            email=email,
+            password="TargetPass123!",
+            full_name="Target User",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+    def _reissue_url(self, user_id):
+        return reverse("accounts:admin_reissue_link", args=[user_id])
+
+    def _post_reissue(self, admin, target):
+        self.client.force_login(admin)
+        return self.client.post(self._reissue_url(target.pk))
+
+    # ------------------------------------------------------------------ permission grid
+
+    def test_reissue_anonymous_redirects_to_login(self):
+        target = self._make_target()
+        url = self._reissue_url(target.pk)
+        response = self.client.post(url)
+        self.assertRedirects(response, f"{reverse('accounts:login')}?next={url}")
+        target.refresh_from_db()
+        self.assertTrue(target.has_usable_password())
+
+    def test_reissue_pending_owner_redirected_password_unchanged(self):
+        owner = User.objects.create_user(
+            email="pendowner2@x.com", password="P123!",
+            status=User.Status.PENDING, role=User.Role.SHOP_OWNER,
+        )
+        target = self._make_target()
+        old_password = target.password
+        self.client.force_login(owner)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:pending_approval"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_password)
+
+    def test_reissue_suspended_owner_redirected_password_unchanged(self):
+        owner = User.objects.create_user(
+            email="suspowner2@x.com", password="P123!",
+            status=User.Status.SUSPENDED, role=User.Role.SHOP_OWNER,
+        )
+        target = self._make_target()
+        old_password = target.password
+        self.client.force_login(owner)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:account_suspended"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_password)
+
+    def test_reissue_active_shop_owner_redirected_password_unchanged(self):
+        owner = User.objects.create_user(
+            email="actowner2@x.com", password="P123!",
+            status=User.Status.ACTIVE, role=User.Role.SHOP_OWNER,
+        )
+        target = self._make_target()
+        old_password = target.password
+        self.client.force_login(owner)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("shops:dashboard"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_password)
+
+    def test_reissue_pending_admin_redirected_password_unchanged(self):
+        admin = User.objects.create_user(
+            email="pendadmin2@x.com", password="P123!",
+            status=User.Status.PENDING, role=User.Role.ADMIN,
+        )
+        target = self._make_target()
+        old_password = target.password
+        self.client.force_login(admin)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:pending_approval"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_password)
+
+    def test_reissue_suspended_admin_redirected_password_unchanged(self):
+        admin = User.objects.create_user(
+            email="suspadmin2@x.com", password="P123!",
+            status=User.Status.SUSPENDED, role=User.Role.ADMIN,
+        )
+        target = self._make_target()
+        old_password = target.password
+        self.client.force_login(admin)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:account_suspended"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_password)
+
+    def test_reissue_active_admin_succeeds(self):
+        admin = self._make_admin()
+        target = self._make_target()
+        response = self._post_reissue(admin, target)
+        self.assertRedirects(response, reverse("accounts:admin_link_display"))
+        target.refresh_from_db()
+        self.assertFalse(target.has_usable_password())
+
+    # ------------------------------------------------------------------ GET rejected
+
+    def test_reissue_get_redirects_to_dashboard(self):
+        admin = self._make_admin()
+        target = self._make_target()
+        self.client.force_login(admin)
+        response = self.client.get(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:admin_dashboard"))
+        target.refresh_from_db()
+        self.assertTrue(target.has_usable_password())
+
+    # ------------------------------------------------------------------ CSRF
+
+    def test_reissue_without_csrf_is_403(self):
+        admin = self._make_admin()
+        target = self._make_target()
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(admin)
+        response = client.post(self._reissue_url(target.pk))
+        self.assertEqual(response.status_code, 403)
+        target.refresh_from_db()
+        self.assertTrue(target.has_usable_password())
+
+    # ------------------------------------------------------------------ self-reissue rejected
+
+    def test_reissue_self_rejected(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.post(self._reissue_url(admin.pk))
+        self.assertRedirects(response, reverse("accounts:admin_dashboard"))
+        admin.refresh_from_db()
+        self.assertTrue(admin.has_usable_password())
+
+    # ------------------------------------------------------------------ non-ACTIVE targets rejected
+
+    def test_reissue_pending_target_rejected(self):
+        admin = self._make_admin()
+        target = User.objects.create_user(
+            email="pend-target@x.com", password="P123!",
+            status=User.Status.PENDING, role=User.Role.SHOP_OWNER,
+        )
+        old_pw = target.password
+        self.client.force_login(admin)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:admin_dashboard"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_pw)
+
+    def test_reissue_suspended_target_rejected(self):
+        admin = self._make_admin()
+        target = User.objects.create_user(
+            email="susp-target@x.com", password="P123!",
+            status=User.Status.SUSPENDED, role=User.Role.SHOP_OWNER,
+        )
+        old_pw = target.password
+        self.client.force_login(admin)
+        response = self.client.post(self._reissue_url(target.pk))
+        self.assertRedirects(response, reverse("accounts:admin_dashboard"))
+        target.refresh_from_db()
+        self.assertEqual(target.password, old_pw)
+
+    # ------------------------------------------------------------------ link/password/session effects
+
+    def test_reissue_old_password_no_longer_authenticates(self):
+        from django.contrib.auth import authenticate
+        admin = self._make_admin()
+        target = self._make_target()
+        # Verify old password works before reissue
+        self.assertIsNotNone(authenticate(username=target.email, password="TargetPass123!"))
+        self._post_reissue(admin, target)
+        # After reissue, old password must not authenticate
+        self.assertIsNone(authenticate(username=target.email, password="TargetPass123!"))
+
+    def test_reissue_old_link_is_dead(self):
+        """After reissue, the token generated before reissue must be invalid."""
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        admin = self._make_admin()
+        target = self._make_target()
+
+        # Capture token before reissue
+        old_token = default_token_generator.make_token(target)
+        old_uid = urlsafe_base64_encode(force_bytes(target.pk))
+
+        self._post_reissue(admin, target)
+
+        # Old link must now show validlink=False
+        old_url = reverse("accounts:set_password", args=[old_uid, old_token])
+        response = self.client.get(old_url, follow=True)
+        self.assertFalse(response.context["validlink"])
+
+    def test_reissue_new_link_works_once(self):
+        """After reissue, the new link from admin_link_display can set a password."""
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        admin = self._make_admin()
+        target = self._make_target()
+
+        self._post_reissue(admin, target)
+
+        # admin_link_display pops the session key and generates a fresh link
+        target.refresh_from_db()
+        new_uid = urlsafe_base64_encode(force_bytes(target.pk))
+        new_token = default_token_generator.make_token(target)
+        new_url = reverse("accounts:set_password", args=[new_uid, new_token])
+
+        response = self.client.get(new_url, follow=True)
+        self.assertTrue(response.context["validlink"])
+
+        # Use the session-internal URL (token moved to session by PasswordResetConfirmView)
+        final_url = response.redirect_chain[-1][0] if response.redirect_chain else new_url
+        post_response = self.client.post(final_url, {
+            "new_password1": "FreshPassword99!",
+            "new_password2": "FreshPassword99!",
+        })
+        self.assertEqual(post_response.status_code, 302)
+
+        target.refresh_from_db()
+        self.assertTrue(target.has_usable_password())
+
+    def test_reissue_invalidates_target_session(self):
+        """
+        The target's old session must no longer grant access to protected pages
+        after reissue (Django invalidates sessions whose auth hash changes).
+        """
+        admin = self._make_admin()
+        target = self._make_target()
+
+        # Log target in on a separate client to establish a session
+        target_client = Client()
+        target_client.force_login(target)
+        # Confirm session works: home is public, 200 means session is live
+        resp_home = target_client.get(reverse("home"))
+        self.assertEqual(resp_home.status_code, 200)
+
+        # Reissue: changes password hash -> _auth_user_hash changes -> session revoked
+        self._post_reissue(admin, target)
+
+        # After reissue the target's session is invalidated. A @login_required page
+        # must redirect to login.
+        dashboard_resp = target_client.get(reverse("accounts:admin_dashboard"))
+        login_url = reverse("accounts:login")
+        self.assertRedirects(
+            dashboard_resp,
+            f"{login_url}?next={reverse('accounts:admin_dashboard')}",
+        )
+
+    def test_reissue_acting_admin_session_still_works(self):
+        """The acting admin's own session must not be invalidated by reissuing."""
+        admin = self._make_admin()
+        target = self._make_target()
+        self.client.force_login(admin)
+        self.client.post(self._reissue_url(target.pk))
+        # Admin can still access the dashboard
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+    # ------------------------------------------------------------------ AC12 logging
+
+    def test_reissue_log_exactly_one_info_line(self):
+        admin = self._make_admin()
+        target = self._make_target()
+        with self.assertLogs("accounts.views", level="INFO") as log_ctx:
+            self._post_reissue(admin, target)
+
+        self.assertEqual(len(log_ctx.output), 1)
+        log_line = log_ctx.output[0]
+
+        self.assertIn(str(admin.pk), log_line)
+        self.assertIn(str(target.pk), log_line)
+        self.assertIn("reissue", log_line)
+
+        # Must not contain link, token, uid-b64, or password
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+        target.refresh_from_db()
+        uid_b64 = urlsafe_base64_encode(force_bytes(target.pk))
+        token = default_token_generator.make_token(target)
+        for secret in (uid_b64, token, target.password):
+            self.assertNotIn(secret, log_line)
+
+    # ------------------------------------------------------------------ Active Accounts section
+
+    def test_active_accounts_section_only_lists_active_users(self):
+        admin = self._make_admin()
+        active = self._make_target()
+        pending = User.objects.create_user(
+            email="pend@x.com", password="P123!",
+            status=User.Status.PENDING, role=User.Role.SHOP_OWNER,
+        )
+        suspended = User.objects.create_user(
+            email="susp@x.com", password="P123!",
+            status=User.Status.SUSPENDED, role=User.Role.SHOP_OWNER,
+        )
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+
+        active_page = response.context["active_page_obj"]
+        emails = [u.email for u in active_page.object_list]
+        # active target and admin itself are ACTIVE
+        self.assertIn(active.email, emails)
+        self.assertNotIn(pending.email, emails)
+        self.assertNotIn(suspended.email, emails)
+
+    def test_active_accounts_empty_state(self):
+        # Create admin; admin is ACTIVE so section won't be empty by default.
+        # We need a clean state with no ACTIVE users. Use a non-active admin hack:
+        # just verify context key exists and the template renders.
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        self.assertIn("active_page_obj", response.context)
+        self.assertEqual(response.status_code, 200)
+
+    def test_active_accounts_no_reissue_button_on_own_row(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        content = response.content.decode()
+        # The reissue URL for the admin's own pk must not appear
+        own_reissue_url = reverse("accounts:admin_reissue_link", args=[admin.pk])
+        self.assertNotIn(own_reissue_url, content)
+
+    def test_active_accounts_apage_independent_of_page(self):
+        """?apage=1 must not affect the pending list's page param and vice versa."""
+        admin = self._make_admin()
+        
+        # Create 30 PENDING users
+        for i in range(30):
+            User.objects.create_user(
+                email=f"pending{i}@x.com",
+                password=None,
+                full_name=f"Pending {i}",
+                role=User.Role.SHOP_OWNER,
+                status=User.Status.PENDING,
+            )
+        # Create 30 ACTIVE users
+        for i in range(30):
+            User.objects.create_user(
+                email=f"active{i}@x.com",
+                password=None,
+                full_name=f"Active {i}",
+                role=User.Role.SHOP_OWNER,
+                status=User.Status.ACTIVE,
+            )
+            
+        self.client.force_login(admin)
+        
+        # ?page=2 should not affect apage (defaults to 1)
+        r1 = self.client.get(reverse("accounts:admin_dashboard") + "?page=2")
+        self.assertEqual(r1.context["page_obj"].number, 2)
+        self.assertEqual(r1.context["active_page_obj"].number, 1)
+        
+        # ?apage=2 should not affect page (defaults to 1)
+        r2 = self.client.get(reverse("accounts:admin_dashboard") + "?apage=2")
+        self.assertEqual(r2.context["page_obj"].number, 1)
+        self.assertEqual(r2.context["active_page_obj"].number, 2)
+        
+        # Both set
+        r3 = self.client.get(reverse("accounts:admin_dashboard") + "?page=2&apage=2")
+        self.assertEqual(r3.context["page_obj"].number, 2)
+        self.assertEqual(r3.context["active_page_obj"].number, 2)
+
+    def test_active_accounts_html_escaped_in_name(self):
+        admin = self._make_admin()
+        xss_user = User.objects.create_user(
+            email="xss@x.com", password="XssPass123!",
+            full_name='<script>alert("xss")</script>',
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        content = response.content.decode()
+        self.assertNotIn('<script>alert("xss")</script>', content)
+        self.assertIn("&lt;script&gt;", content)
+        
+    def test_active_accounts_reissue_onclick_has_no_user_data(self):
+        admin = self._make_admin()
+        xss_user = User.objects.create_user(
+            email="xss2@x.com", password="XssPass123!",
+            full_name="x');alert(1);//",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        content = response.content.decode()
+        
+        # The exact onclick should match the constant string
+        expected_onclick = "onclick=\"return confirm('Reset this account and generate a new link? Their current password and old links will stop working.')\""
+        self.assertIn(expected_onclick, content)
+        # The malicious string should only appear escaped in the table cell
+        self.assertNotIn("x');alert(1);//", content)
+        self.assertIn("x&#x27;);alert(1);//", content)

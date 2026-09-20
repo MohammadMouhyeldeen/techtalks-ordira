@@ -113,7 +113,19 @@ def admin_dashboard(request):
     paginator = Paginator(pending_qs, 25)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    return render(request, "accounts/admin_dashboard.html", {"page_obj": page_obj})
+    # Active Accounts section (SCRUM-41 Part B, AC10)
+    active_qs = (
+        User.objects
+        .filter(status=User.Status.ACTIVE)
+        .order_by("full_name")
+    )
+    active_paginator = Paginator(active_qs, 25)
+    active_page_obj = active_paginator.get_page(request.GET.get("apage"))
+
+    return render(request, "accounts/admin_dashboard.html", {
+        "page_obj": page_obj,
+        "active_page_obj": active_page_obj,
+    })
 
 
 @login_required
@@ -317,6 +329,55 @@ def admin_link_display(request):
     # AC6: prevent caching so the link is not retrievable from browser history.
     response["Cache-Control"] = "no-store"
     return response
+
+
+@login_required
+def admin_reissue_link(request, user_id):
+    """Reissues a set-password link for an ACTIVE user (SCRUM-41, AC10).
+
+    POST-only - non-POST redirects to admin_dashboard with no side-effects.
+    Rejects self-reissue (AC10 amendment) and non-ACTIVE targets.
+    AC12: one INFO line with acting admin id, target id, and "reissue".
+    Never logs the link, token, uid-b64, or new password.
+    """
+    denied = _require_admin(request)
+    if denied:
+        return denied
+
+    if request.method != "POST":
+        return redirect("accounts:admin_dashboard")
+
+    with transaction.atomic():
+        target = get_object_or_404(
+            User.objects.select_for_update(),
+            pk=user_id,
+        )
+
+        if target.pk == request.user.pk:
+            messages.error(
+                request,
+                "You cannot reissue a link for yourself.",
+            )
+            return redirect("accounts:admin_dashboard")
+
+        if target.status != User.Status.ACTIVE:
+            messages.error(
+                request,
+                f"{target.full_name} ({target.email}) is not active "
+                f"(status: {target.get_status_display()}). No link reissued.",
+            )
+            return redirect("accounts:admin_dashboard")
+
+        target.set_unusable_password()
+        target.save(update_fields=["password"])
+
+    logger.info(
+        "admin_reissue uid=%s by_admin=%s",
+        target.pk,
+        request.user.pk,
+    )
+    request.session[_LINK_UID_SESSION_KEY] = target.pk
+    return redirect("accounts:admin_link_display")
 
 
 class SetPasswordView(PasswordResetConfirmView):

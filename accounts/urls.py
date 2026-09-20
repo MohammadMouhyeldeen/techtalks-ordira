@@ -45,6 +45,12 @@ urlpatterns = [
         views.admin_link_display,
         name="admin_link_display",
     ),
+    # SCRUM-41 Part B: Reissue link (POST-only, Admin only)
+    path(
+        "admin-dashboard/reissue/<int:user_id>/",
+        views.admin_reissue_link,
+        name="admin_reissue_link",
+    ),
     # set-password/* lives outside admin-dashboard/ — visited by the new user, not the Admin.
     path(
         "set-password/<uidb64>/<token>/",

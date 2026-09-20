@@ -167,5 +167,106 @@
 
     </div>{# /.admin-card #}
 
+
+    {# ---- Active Accounts section (SCRUM-41 Part B) ---- #}
+    <div class="admin-card" style="margin-top:2.5rem;">
+
+        <header class="admin-page-header" style="padding:1.5rem 1.5rem 0;">
+            <h2 class="admin-page-title" style="font-size:1.15rem;">Active Accounts</h2>
+        </header>
+
+        {% if active_page_obj.object_list %}
+
+        <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Active accounts">
+                <thead>
+                    <tr>
+                        <th scope="col">Name / Email</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for active_user in active_page_obj %}
+                    <tr>
+                        <td>
+                            <div class="admin-table-name">{{ active_user.full_name }}</div>
+                            <div class="admin-table-email">{{ active_user.email }}</div>
+                        </td>
+                        <td>{{ active_user.get_role_display }}</td>
+                        <td>
+                            {% if active_user.pk != request.user.pk %}
+                            {# Reissue - POST-only, CSRF-protected. Hidden on own row. #}
+                            <form method="post"
+                                  action="{% url 'accounts:admin_reissue_link' active_user.pk %}"
+                                  aria-label="Reissue link for {{ active_user.full_name }}">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn-approve"
+                                        id="reissue-{{ active_user.pk }}"
+                                        onclick="return confirm('Reset this account and generate a new link? Their current password and old links will stop working.')">
+                                    Reissue Link
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color:var(--ink-300);font-size:0.85rem;">(you)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# ---- Pagination for active accounts (uses "apage" param) ---- #}
+        {% if active_page_obj.paginator.num_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Active accounts pagination">
+            <span class="admin-pagination-count">
+                Page {{ active_page_obj.number }} of {{ active_page_obj.paginator.num_pages }}
+            </span>
+            <div class="admin-pagination-links">
+                {% if active_page_obj.has_previous %}
+                    <a href="?apage={{ active_page_obj.previous_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Previous active page">&#8592; Prev</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">&#8592; Prev</span>
+                {% endif %}
+
+                {% for num in active_page_obj.paginator.page_range %}
+                    {% if active_page_obj.number == num %}
+                        <span class="admin-pagination-link current" aria-current="page">{{ num }}</span>
+                    {% elif num >= active_page_obj.number|add:"-2" and num <= active_page_obj.number|add:"2" %}
+                        <a href="?apage={{ num }}"
+                           class="admin-pagination-link"
+                           aria-label="Active page {{ num }}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if active_page_obj.has_next %}
+                    <a href="?apage={{ active_page_obj.next_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Next active page">Next &#8594;</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">Next &#8594;</span>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+
+        {% else %}
+
+        {# ---- Empty State ---- #}
+        <div class="admin-empty" id="active-empty-state">
+            <h2 class="admin-empty-title">No active accounts yet.</h2>
+            <p class="admin-empty-text">
+                Create a user above to see them listed here.
+            </p>
+        </div>
+
+        {% endif %}
+
+    </div>{# /.admin-card active #}
+
 </div>{# /.admin-layout #}
 {% endblock %}

@@ -172,3 +172,4 @@ User.objects.create_user("pending@example.com", "testpassword123", full_name="Pe
 - `accounts:admin_create_user` (`admin-dashboard/create-user/`, Admin only): enter name, email and role. The account is created ACTIVE with no password.
 - The next page shows a one-time set-password link exactly once. Copy it and send it to the user. Reloading does not show it again.
 - The user opens the link, chooses a password, then logs in. The link works once and expires after `PASSWORD_RESET_TIMEOUT` (3 days).
+- The Admin dashboard has an **Active Accounts** list with a **Reissue Link** button (not on your own row). Reissue resets the user: their old password, old links and active sessions stop working, and a new one-time link is shown once. This is also how a forgotten password is recovered.
