@@ -1,0 +1,116 @@
+<nav class="navbar">
+
+    <!-- LEFT SIDE -->
+    <div class="navbar-left">
+
+        <!-- Mobile Menu -->
+        <button
+            class="menu-toggle"
+            onclick="toggleSidebar()"
+            aria-label="Open navigation menu">
+            ☰
+        </button>
+
+
+        <!-- Logo -->
+        <a href="#" class="logo">
+            Ordira
+        </a>
+
+
+        <!-- Current Shop -->
+        <button class="shop-selector">
+
+            <span>🏪</span>
+
+            <span>
+                {% if shop %}
+                    {{ shop.name }}
+                {% else %}
+                    My Shop
+                {% endif %}
+            </span>
+
+            <span>⌄</span>
+
+        </button>
+
+    </div>
+
+
+    <!-- RIGHT SIDE -->
+    <div class="navbar-right">
+
+
+        <!-- Notifications -->
+
+        <button
+            class="notification-btn"
+            aria-label="Notifications">
+
+            🔔
+
+            {% if unread_notifications %}
+                <span class="notification-badge">
+                    {{ unread_notifications }}
+                </span>
+            {% endif %}
+
+        </button>
+
+
+        <!-- User -->
+
+        <div class="user-menu">
+
+            <div class="user-avatar">
+
+                {% if request.user.first_name %}
+                    {{ request.user.first_name|first|upper }}
+                {% else %}
+                    U
+                {% endif %}
+
+            </div>
+
+
+            <div class="user-info">
+
+                <span class="user-name">
+
+                    {% if request.user.get_full_name %}
+                        {{ request.user.get_full_name }}
+                    {% else %}
+                        {{ request.user.username }}
+                    {% endif %}
+
+                </span>
+
+                <span class="user-role">
+                    Shop Owner
+                </span>
+
+            </div>
+
+            <span>⌄</span>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
+<script>
+
+    function toggleSidebar() {
+
+        const sidebar = document.querySelector(".sidebar");
+
+        if (sidebar) {
+            sidebar.classList.toggle("open");
+        }
+
+    }
+
+</script>
