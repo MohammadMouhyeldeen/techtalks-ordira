@@ -1,3 +1,4 @@
+
 <nav class="navbar">
 
     <!-- LEFT SIDE -->
@@ -11,106 +12,66 @@
             ☰
         </button>
 
-
         <!-- Logo -->
         <a href="#" class="logo">
             Ordira
         </a>
 
-
-        <!-- Current Shop -->
-        <button class="shop-selector">
-
-            <span>🏪</span>
-
-            <span>
-                {% if shop %}
-                    {{ shop.name }}
-                {% else %}
-                    My Shop
-                {% endif %}
-            </span>
-
-            <span>⌄</span>
-
-        </button>
-
     </div>
-
 
     <!-- RIGHT SIDE -->
     <div class="navbar-right">
 
-
         <!-- Notifications -->
-
         <button
             class="notification-btn"
             aria-label="Notifications">
-
             🔔
-
             {% if unread_notifications %}
                 <span class="notification-badge">
                     {{ unread_notifications }}
                 </span>
             {% endif %}
-
         </button>
 
-
         <!-- User -->
-
         <div class="user-menu">
 
             <div class="user-avatar">
-
                 {% if request.user.full_name %}
                     {{ request.user.full_name|first|upper }}
                 {% else %}
                     {{ request.user.email|first|upper }}
                 {% endif %}
-
             </div>
 
-
             <div class="user-info">
-
                 <span class="user-name">
-
                     {% if request.user.full_name %}
                         {{ request.user.full_name }}
                     {% else %}
                         {{ request.user.email }}
                     {% endif %}
-
                 </span>
 
                 <span class="user-role">
-                    Shop Owner
+                    {{ request.user.get_role_display }}
                 </span>
-
             </div>
 
             <span>⌄</span>
+        </div>
 
         </div>
 
-    </div>
-
 </nav>
 
-
 <script>
-
     function toggleSidebar() {
-
         const sidebar = document.querySelector(".sidebar");
 
         if (sidebar) {
             sidebar.classList.toggle("open");
         }
-
     }
-
 </script>

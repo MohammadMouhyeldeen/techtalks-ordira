@@ -20,17 +20,16 @@
 
     <!-- Main Styles -->
     <style>
-
-        * {
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
         :root {
-            --primary: #6c4df6;
-            --primary-dark: #5638d8;
-            --primary-light: #f0edff;
+            --primary: #4b3cf0;
+            --primary-dark: #3d2fc7;
+            --primary-light: #f0eeff;
 
             --background: #f7f7fb;
             --surface: #ffffff;
@@ -57,7 +56,7 @@
         }
 
         body {
-            font-family: "Inter", sans-serif;
+            font-family: "Plus Jakarta Sans", sans-serif;
             background: var(--background);
             color: var(--text-primary);
             min-height: 100vh;
@@ -127,31 +126,7 @@
             cursor: pointer;
         }
 
-        /* Shop selector */
-
-        .shop-selector {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-
-            padding: 8px 13px;
-
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-
-            background: var(--surface);
-
-            font-size: 14px;
-            font-weight: 500;
-
-            cursor: pointer;
-        }
-
-        .shop-selector:hover {
-            background: var(--primary-light);
-        }
-
-        /* Notification */
+               /* Notification */
 
         .notification-btn {
             width: 38px;
@@ -420,38 +395,8 @@
             color: var(--danger);
         }
 
-        /* =========================
-           FOOTER
-        ========================== */
-
-        .footer {
-            margin-left: var(--sidebar-width);
-
-            padding: 18px 30px;
-
-            border-top: 1px solid var(--border);
-
-            background: var(--surface);
-
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            color: var(--text-secondary);
-
-            font-size: 12px;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 18px;
-        }
-
-        .footer-links a:hover {
-            color: var(--primary);
-        }
-
-        /* =========================
+       
+              /* =========================
            RESPONSIVE
         ========================== */
 
@@ -474,10 +419,7 @@
                 margin-left: 0;
             }
 
-            .footer {
-                margin-left: 0;
-            }
-
+            
             .user-info {
                 display: none;
             }
@@ -497,15 +439,6 @@
                 padding: 20px 15px;
             }
 
-            .footer {
-                padding: 15px;
-                flex-direction: column;
-                gap: 10px;
-            }
-        }
-
-    </style>
-
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -516,7 +449,7 @@
          NAVBAR
     ========================== -->
 
-    {% include "Components/navbar.html" %}
+    {% include "components/navbar.html" %}
 
 
     <!-- =========================
@@ -525,7 +458,7 @@
 
     <div class="main-wrapper">
 
-        {% include "Components/sidebar.html" %}
+        {% include "components/sidebar.html" %}
 
         <main class="main-content">
 
@@ -541,7 +474,7 @@
          FOOTER
     ========================== -->
 
-    {% include "Components/footer.html" %}
+    {% include "components/footer.html" %}
 
 
     {% block extra_js %}{% endblock %}
