@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from .models import User
 
 
+
 class RegistrationForm(forms.ModelForm):
     password1 = forms.CharField(
         label="Password",
@@ -80,3 +81,60 @@ class LoginForm(forms.Form):
                 raise ValidationError("Invalid email or password.")
 
         return self.cleaned_data
+
+
+class AdminCreateUserForm(forms.Form):
+    """
+    Admin-only form for direct user creation (SCRUM-41).
+
+    Creates an account with an unusable password; the user must follow the
+    one-time set-password link to choose their own password before logging in.
+
+    Validation rules:
+    - full_name: required, not whitespace-only, max 150 chars.
+    - email: required, stripped, fully lower-cased, valid format, unique
+      (case-insensitive check mirrors RegistrationForm.clean_email).
+    - role: must be exactly ADMIN or SHOP_OWNER — server-side re-validation
+      regardless of what the client POSTed.
+    """
+
+    full_name = forms.CharField(
+        label="Full name",
+        max_length=User._meta.get_field("full_name").max_length,
+        strip=True,
+        widget=forms.TextInput(attrs={"autocomplete": "name"}),
+    )
+    email = forms.EmailField(
+        label="Email address",
+        max_length=User._meta.get_field("email").max_length,
+        widget=forms.EmailInput(attrs={"autocomplete": "email"}),
+    )
+    role = forms.ChoiceField(
+        label="Role",
+        choices=User.Role.choices,
+    )
+
+    def clean_full_name(self):
+        name = self.cleaned_data.get("full_name", "")
+        if not name.strip():
+            raise ValidationError("Full name is required.")
+        return name
+
+    def clean_email(self):
+        # Strip whitespace and fully lower-case (normalize_email only
+        # lowercases the domain; the local-part must be lowercased here).
+        email = self.cleaned_data.get("email", "").strip().lower()
+        if not email:
+            raise ValidationError("Email address is required.")
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("A user with this email already exists.")
+        return email
+
+    def clean_role(self):
+        role = self.cleaned_data.get("role", "")
+        allowed = {User.Role.ADMIN, User.Role.SHOP_OWNER}
+        if role not in allowed:
+            raise ValidationError(
+                "Select a valid role. Allowed values: ADMIN, SHOP_OWNER."
+            )
+        return role

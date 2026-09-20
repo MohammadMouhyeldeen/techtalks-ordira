@@ -144,6 +144,9 @@ The `media/` directory is ignored by Git. Only the file paths are stored in Post
 
 ## New URLs available: /register/, /login/, /logout/, /admin-dashboard/ (placeholder), shops:dashboard (placeholder)
 
+## SCRUM-41 — Admin direct user creation (set-password link flow)
+New admin URLs: `accounts/admin-dashboard/create-user/` (create form), `accounts/admin-dashboard/link-display/` (one-time link display), `accounts/admin-dashboard/reissue/<id>/` (reissue — POST only). New user-facing URLs: `accounts/set-password/<uidb64>/<token>/` (set-password form), `accounts/set-password/done/` (success page). Flow: Admin fills the form → account created with unusable password and status ACTIVE → one-time link shown once (Cache-Control: no-store, never emailed, never logged) → new user opens link, sets password, logs in. Reissue (on the Active Accounts section of the admin dashboard) resets the user's password to unusable and invalidates all previous links and sessions. Known limitations: links are delivered manually by the Admin; two concurrent creations in two tabs lose the first link (use Reissue); LOGGING is not configured so audit lines are silent at runtime; ALLOWED_HOSTS and proxy/SSL settings must be configured in production or links will have the wrong host/scheme.
+
 ## New settings added: LOGIN_URL and LOGIN_REDIRECT_URL in config/settings.py 
 
 ## Known limitation flag: both admin_dashboard.html and shops/dashboard.html are explicit placeholders, not real pages yet.

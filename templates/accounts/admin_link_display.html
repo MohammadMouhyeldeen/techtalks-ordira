@@ -1,0 +1,80 @@
+{% extends "accounts/admin_base.html" %}
+
+{% block title %}Set-Password Link — {{ target.full_name }}{% endblock %}
+{% block meta_description %}One-time set-password link for {{ target.email }}. Copy and send it now — it will not be shown again.{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+
+    <header class="admin-page-header">
+        <h1 class="admin-page-title">Account Created</h1>
+        <p class="admin-page-subtitle">
+            Copy the link below and send it to <strong>{{ target.full_name }}</strong>
+            ({{ target.email }}).
+        </p>
+    </header>
+
+    <div class="admin-card" style="max-width:680px;">
+
+        {# ---- Security notice ---- #}
+        <div class="admin-message admin-message-error" role="alert" style="margin-bottom:1.25rem;">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <strong>This link will not be shown again.</strong>
+            Copy it now. A reload or back-button will not reveal it — use Reissue instead.
+        </div>
+
+        {# ---- Account summary ---- #}
+        <table class="admin-table" style="margin-bottom:1.5rem;" aria-label="New account details">
+            <tbody>
+                <tr>
+                    <th scope="row" style="width:30%;font-weight:600;">Name</th>
+                    <td>{{ target.full_name }}</td>
+                </tr>
+                <tr>
+                    <th scope="row" style="font-weight:600;">Email</th>
+                    <td>{{ target.email }}</td>
+                </tr>
+                <tr>
+                    <th scope="row" style="font-weight:600;">Role</th>
+                    <td>{{ target.get_role_display }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {# ---- Link display ---- #}
+        <div class="form-group">
+            <label for="set-password-link">Set-password link (one-time use)</label>
+            {#
+                readonly + onclick="this.select()" lets the Admin select the full URL
+                with a single click, without requiring the clipboard API (AC amendment).
+                The link value comes from the view context — never from the database or logs.
+            #}
+            <input
+                type="text"
+                id="set-password-link"
+                value="{{ link }}"
+                readonly
+                onclick="this.select()"
+                style="font-family:monospace;font-size:0.82rem;cursor:pointer;"
+                aria-label="One-time set-password link — click to select all"
+            >
+        </div>
+
+        <p style="font-size:0.85rem;color:var(--ink-300);margin-bottom:1.5rem;">
+            This link expires in {{ expire_days }} days and works only once. After the user sets their
+            password this link stops working. If the link expires or is lost, use
+            <strong>Reissue</strong> on the Active Accounts list.
+        </p>
+
+        <a href="{% url 'accounts:admin_create_user' %}" class="btn-auth" id="create-another-link"
+           style="display:inline-flex;text-decoration:none;">
+            Create Another User
+        </a>
+
+    </div>{# /.admin-card #}
+
+</div>{# /.admin-layout #}
+{% endblock %}
