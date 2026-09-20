@@ -153,5 +153,13 @@
     </a>
 
 
+   <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}
+    <button type="submit" class="sidebar-link sidebar-logout">
+        <span class="sidebar-icon">🚪</span>
+        <span>Logout</span>
+    </button>
+</form>
+</aside>
 
 </div>

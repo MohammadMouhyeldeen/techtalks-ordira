@@ -15,8 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Main Styles -->
     <style>
@@ -431,20 +430,44 @@
                 padding: 0 15px;
             }
 
-            .shop-selector {
-                display: none;
-            }
+           
 
-            .main-content {
-                padding: 20px 15px;
-            }
+            @media (max-width: 600px) {
+    .main-content {
+        padding: 20px 15px;
+    }
+}
+.message {
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+}
 
+.message-success {
+    background: var(--primary-100);
+    color: var(--primary-600);
+}
+
+.message-error {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.sidebar-logout {
+    background: none;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+</style>
     {% block extra_css %}{% endblock %}
 </head>
 
 
 <body>
 
+
+    
     <!-- =========================
          NAVBAR
     ========================== -->
@@ -458,26 +481,26 @@
 
     <div class="main-wrapper">
 
-        {% include "components/sidebar.html" %}
+    {% include "components/sidebar.html" %}
 
-        <main class="main-content">
+    <main class="main-content">
 
-            {% block content %}
-            {% endblock %}
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message message-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
-        </main>
+        {% block content %}
+        {% endblock %}
 
-    </div>
+    </main>
 
-
-    <!-- =========================
-         FOOTER
-    ========================== -->
-
-    {% include "components/footer.html" %}
+</div>
 
 
-    {% block extra_js %}{% endblock %}
-
+    
 </body>
 </html>
