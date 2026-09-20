@@ -144,9 +144,6 @@ The `media/` directory is ignored by Git. Only the file paths are stored in Post
 
 ## New URLs available: /register/, /login/, /logout/, /admin-dashboard/ (placeholder), shops:dashboard (placeholder)
 
-## SCRUM-41 — Admin direct user creation (set-password link flow)
-New admin URLs: `accounts/admin-dashboard/create-user/` (create form), `accounts/admin-dashboard/link-display/` (one-time link display), `accounts/admin-dashboard/reissue/<id>/` (reissue — POST only). New user-facing URLs: `accounts/set-password/<uidb64>/<token>/` (set-password form), `accounts/set-password/done/` (success page). Flow: Admin fills the form → account created with unusable password and status ACTIVE → one-time link shown once (Cache-Control: no-store, never emailed, never logged) → new user opens link, sets password, logs in. Reissue (on the Active Accounts section of the admin dashboard) resets the user's password to unusable and invalidates all previous links and sessions. Known limitations: links are delivered manually by the Admin; two concurrent creations in two tabs lose the first link (use Reissue); LOGGING is not configured so audit lines are silent at runtime; ALLOWED_HOSTS and proxy/SSL settings must be configured in production or links will have the wrong host/scheme.
-
 ## New settings added: LOGIN_URL and LOGIN_REDIRECT_URL in config/settings.py 
 
 ## Known limitation flag: both admin_dashboard.html and shops/dashboard.html are explicit placeholders, not real pages yet.
@@ -169,4 +166,9 @@ User.objects.create_superuser("admin@example.com", "testpassword123", full_name=
 # Example: Create a pending shop owner
 User.objects.create_user("pending@example.com", "testpassword123", full_name="Pending", status=User.Status.PENDING, role=User.Role.SHOP_OWNER)
 ```
-*Note: Always use `User.objects.create_user()` or `create_superuser()` to ensure passwords are automatically hashed. Never set passwords directly without hashing.*
+*Note: Always use `User.objects.create_user()` or `create_superuser()` to ensure passwords are automatically hashed. Never set passwords directly without hashing.*
+
+### Admin: create a user directly
+- `accounts:admin_create_user` (`admin-dashboard/create-user/`, Admin only): enter name, email and role. The account is created ACTIVE with no password.
+- The next page shows a one-time set-password link exactly once. Copy it and send it to the user. Reloading does not show it again.
+- The user opens the link, chooses a password, then logs in. The link works once and expires after `PASSWORD_RESET_TIMEOUT` (3 days).
