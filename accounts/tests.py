@@ -185,7 +185,7 @@ class AdminApprovalTests(TestCase):
 
         response = self.client.get(reverse("accounts:admin_dashboard"))
 
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"),fetch_redirect_response=False,)
 
     def test_shop_owner_cannot_approve_users(self):
         owner = self._make_shop_owner(status=User.Status.ACTIVE)
@@ -461,7 +461,7 @@ class AdminApprovalTests(TestCase):
             reverse("accounts:approve_user", args=[target.pk])
         )
 
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"), fetch_redirect_response=False,)
         target.refresh_from_db()
         self.assertEqual(target.status, User.Status.PENDING)
 
@@ -474,7 +474,7 @@ class AdminApprovalTests(TestCase):
             reverse("accounts:reject_user", args=[target.pk])
         )
 
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"), fetch_redirect_response=False,)
         target.refresh_from_db()
         self.assertEqual(target.status, User.Status.PENDING)
 
@@ -794,7 +794,7 @@ class AdminCreateUserTests(TestCase):
         owner = self._make_shop_owner(status=User.Status.ACTIVE)
         self.client.force_login(owner)
         response = self.client.get(reverse("accounts:admin_create_user"))
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"),fetch_redirect_response=False,)
 
     def test_pending_admin_redirected_from_create_page_by_middleware(self):
         admin = self._make_pending_admin()
@@ -863,7 +863,7 @@ class AdminCreateUserTests(TestCase):
         owner = self._make_shop_owner(status=User.Status.ACTIVE)
         self.client.force_login(owner)
         response = self.client.get(reverse("accounts:admin_link_display"))
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"),fetch_redirect_response=False,)
 
     def test_pending_admin_redirected_from_link_display_by_middleware(self):
         admin = self._make_pending_admin()
@@ -1423,7 +1423,7 @@ class AdminCreateUserTests(TestCase):
             reverse("accounts:login"),
             {"email": "shopowner@example.com", "password": "GoodPassword99!"},
         )
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"), fetch_redirect_response=False)
 
     def test_after_set_password_admin_logs_in_and_lands_on_admin_dashboard(self):
         new_user = User.objects.create_user(
@@ -1547,7 +1547,7 @@ class AdminCreateUserTests(TestCase):
         post_data = self._valid_post()
         post_data["role"] = User.Role.ADMIN
         response = self.client.post(reverse("accounts:admin_create_user"), post_data)
-        self.assertRedirects(response, reverse("shops:dashboard")) # non-admins go to their dashboard
+        self.assertRedirects(response, reverse("shops:dashboard"), fetch_redirect_response=False) # non-admins go to their dashboard
         self.assertEqual(User.objects.count(), initial_users)
 
     def test_post_create_as_pending_admin(self):
@@ -1779,7 +1779,7 @@ class AdminReissueTests(TestCase):
         old_password = target.password
         self.client.force_login(owner)
         response = self.client.post(self._reissue_url(target.pk))
-        self.assertRedirects(response, reverse("shops:dashboard"))
+        self.assertRedirects(response, reverse("shops:dashboard"), fetch_redirect_response=False)
         target.refresh_from_db()
         self.assertEqual(target.password, old_password)
 
