@@ -415,6 +415,31 @@ class ShopSetupReviewTests(TestCase):
             ).exists()
         )
 
+    def test_arabic_indic_whatsapp_is_rejected(self):
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.setup_url,{
+                "name": "Arabic Indic WhatsApp Shop",
+                "slug": "arabic-indic-whatsapp-shop",
+                "whatsapp": "٩٦١٧٠١٢٣٤٥٦",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            }
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Enter a WhatsApp number with 10 to 15 digits",
+        )
+        self.assertFalse(
+            Shop.objects.filter(
+                slug="arabic-indic-whatsapp-shop"
+            ).exists()
+        )
+
     def test_logo_over_2_mb_is_rejected(self):
         self.client.force_login(self.owner)
 

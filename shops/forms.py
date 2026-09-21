@@ -74,7 +74,7 @@ class ShopSetupForm(forms.ModelForm):
 
         whatsapp = re.sub(r"[\s\-\(\)\[\]]", "", whatsapp)
 
-        if not whatsapp.isdigit() or not 10 <= len(whatsapp) <= 15:
+        if (not whatsapp.isdigit() or not whatsapp.isascii() or not 10 <= len(whatsapp) <= 15):
             raise forms.ValidationError(
                 "Enter a WhatsApp number with 10 to 15 digits, "
                 "including the country code."
