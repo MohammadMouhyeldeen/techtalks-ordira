@@ -1,0 +1,77 @@
+
+<nav class="navbar">
+
+    <!-- LEFT SIDE -->
+    <div class="navbar-left">
+
+        <!-- Mobile Menu -->
+        <button
+            class="menu-toggle"
+            onclick="toggleSidebar()"
+            aria-label="Open navigation menu">
+            ☰
+        </button>
+
+        <!-- Logo -->
+        <a href="#" class="logo">
+            Ordira
+        </a>
+
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="navbar-right">
+
+        <!-- Notifications -->
+        <button
+            class="notification-btn"
+            aria-label="Notifications">
+            🔔
+            {% if unread_notifications %}
+                <span class="notification-badge">
+                    {{ unread_notifications }}
+                </span>
+            {% endif %}
+        </button>
+
+        <!-- User -->
+        <div class="user-menu">
+
+            <div class="user-avatar">
+                {% if request.user.full_name %}
+                    {{ request.user.full_name|first|upper }}
+                {% else %}
+                    {{ request.user.email|first|upper }}
+                {% endif %}
+            </div>
+
+            <div class="user-info">
+                <span class="user-name">
+                    {% if request.user.full_name %}
+                        {{ request.user.full_name }}
+                    {% else %}
+                        {{ request.user.email }}
+                    {% endif %}
+                </span>
+
+                <span class="user-role">
+                    {{ request.user.get_role_display }}
+                </span>
+            </div>
+
+            <span>⌄</span>
+        </div>
+
+        </div>
+
+</nav>
+
+<script>
+    function toggleSidebar() {
+        const sidebar = document.querySelector(".sidebar");
+
+        if (sidebar) {
+            sidebar.classList.toggle("open");
+        }
+    }
+</script>
