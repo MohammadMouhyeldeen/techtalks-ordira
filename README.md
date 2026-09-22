@@ -87,24 +87,89 @@ The `.env` file contains private credentials and is ignored by Git. Never commit
 
 The `.env.example` file contains only safe example values and remains in the repository to show developers which environment variables are required.
 
-### 7. Verify the Django configuration
+### 7. Apply the database migrations
+
+Create the required tables in the local PostgreSQL database:
+
+```powershell
+python manage.py migrate
+```
+
+### 8. Verify the Django configuration
 
 ```powershell
 python manage.py check
+python manage.py makemigrations --check --dry-run
 ```
 
-To verify the PostgreSQL connection without running migrations:
-
-```powershell
-python manage.py shell -c "from django.db import connection; connection.ensure_connection(); print('Connected to:', connection.vendor, connection.settings_dict['NAME'])"
-```
-
-Expected result:
+Expected results:
 
 ```text
-Connected to: postgresql ordira_db
+System check identified no issues
+No changes detected
 ```
 
-## Migration Notice
+### 9. Run the development server
 
-Do not create or apply the initial migrations until the custom user model and the required database models have been finalized and merged into `develop`.
+```powershell
+python manage.py runserver
+```
+
+Open the application at:
+
+```text
+http://127.0.0.1:8000/
+```
+
+## Database Schema
+
+The initial Ordira database schema includes:
+
+- **Accounts:** User
+- **Shops:** Shop, Subscription, DeliveryZone, ShopPaymentMethod
+- **Products:** Category, Product, ProductVariant, StockMovement
+- **Customers:** Customer
+- **Orders:** Order, OrderItem
+- **Payments:** Payment, Invoice
+- **Notifications:** Notification
+
+The schema includes foreign-key relationships, uniqueness constraints, product and checkout snapshots, stock tracking, delivery options, and manual payment tracking.
+
+## Uploaded Media
+
+Shop logos and product images are stored locally inside the `media/` directory during development.
+
+The `media/` directory is ignored by Git. Only the file paths are stored in PostgreSQL; uploaded image files are not stored directly in the database.
+
+
+## New URLs available: /register/, /login/, /logout/, /admin-dashboard/ (placeholder), shops:dashboard (placeholder)
+
+## New settings added: LOGIN_URL and LOGIN_REDIRECT_URL in config/settings.py 
+
+## Known limitation flag: both admin_dashboard.html and shops/dashboard.html are explicit placeholders, not real pages yet.
+
+## How to run the new tests: python manage.py test accounts -v2
+
+## How to create test users
+During development and manual testing, you may need users with specific roles and statuses (e.g. PENDING, SUSPENDED, ACTIVE ADMIN, ACTIVE SHOP_OWNER). 
+To create them properly, use the Django shell:
+```bash
+python manage.py shell
+```
+Then paste the following code to seed the test users:
+```python
+from accounts.models import User
+
+# Example: Create an active admin
+User.objects.create_superuser("admin@example.com", "testpassword123", full_name="Admin")
+
+# Example: Create a pending shop owner
+User.objects.create_user("pending@example.com", "testpassword123", full_name="Pending", status=User.Status.PENDING, role=User.Role.SHOP_OWNER)
+```
+*Note: Always use `User.objects.create_user()` or `create_superuser()` to ensure passwords are automatically hashed. Never set passwords directly without hashing.*
+
+### Admin: create a user directly
+- `accounts:admin_create_user` (`admin-dashboard/create-user/`, Admin only): enter name, email and role. The account is created ACTIVE with no password.
+- The next page shows a one-time set-password link exactly once. Copy it and send it to the user. Reloading does not show it again.
+- The user opens the link, chooses a password, then logs in. The link works once and expires after `PASSWORD_RESET_TIMEOUT` (3 days).
+- The Admin dashboard has an **Active Accounts** list with a **Reissue Link** button (not on your own row). Reissue resets the user: their old password, old links and active sessions stop working, and a new one-time link is shown once. This is also how a forgotten password is recovered.

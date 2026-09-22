@@ -1,0 +1,288 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Set Up Your Shop | Ordira</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'shops/css/shop_setup.css' %}"
+    >
+</head>
+
+<body>
+    <div class="setup-page">
+        <div class="setup-container">
+
+            <!-- Brand -->
+            <a href="/" class="brand">
+                <span class="brand-mark">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M20 6L9 17l-5-5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+                </span>
+                Ordira
+            </a>
+
+            <!-- Header -->
+            <div class="page-header">
+                <span class="eyebrow">Shop onboarding</span>
+
+                <h1>Set up your shop</h1>
+
+                <p>
+                    Add the details customers will see when they discover
+                    your shop on Ordira.
+                </p>
+            </div>
+
+            <div class="setup-card">
+
+                {% if form.non_field_errors %}
+                    <div class="form-errors">
+                        {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <!-- Section 1 -->
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-number">1</div>
+                            <h2 class="section-title">Shop details</h2>
+                        </div>
+
+                        <div class="section-divider"></div>
+
+                        <div class="form-grid">
+
+                            <div class="form-group">
+                                <label for="{{ form.name.id_for_label }}">
+                                    Shop name
+                                </label>
+
+                                {{ form.name }}
+
+                                {% if form.name.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.name.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <div class="form-group">
+                                <label for="{{ form.slug.id_for_label }}">
+                                    Shop URL
+                                </label>
+
+                                {{ form.slug }}
+
+                                {% if form.slug.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.slug.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <div class="form-group full-width logo-upload">
+                                <label for="{{ form.logo.id_for_label }}">
+                                    Shop logo
+                                </label>
+
+                                {{ form.logo }}
+
+                                <small class="field-help">
+                                    PNG, JPG, or another supported image format.
+                                </small>
+
+                                {% if form.logo.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.logo.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Section 2 -->
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-number">2</div>
+                            <h2 class="section-title">Contact</h2>
+                        </div>
+
+                        <div class="section-divider"></div>
+
+                        <div class="form-grid">
+
+                            <div class="form-group">
+                                <label for="{{ form.whatsapp.id_for_label }}">
+                                    WhatsApp
+                                </label>
+
+                                {{ form.whatsapp }}
+
+                                <small class="field-help">
+                                    Example: +961 70 123 456
+                                </small>
+
+                                {% if form.whatsapp.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.whatsapp.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <div class="form-group">
+                                <label for="{{ form.instagram.id_for_label }}">
+                                    Instagram
+                                </label>
+
+                                {{ form.instagram }}
+
+                                <small class="field-help">
+                                    Example: @yourshop
+                                </small>
+
+                                {% if form.instagram.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.instagram.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Section 3 -->
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-number">3</div>
+                            <h2 class="section-title">Shop settings</h2>
+                        </div>
+
+                        <div class="section-divider"></div>
+
+                        <div class="form-grid">
+
+                            <div class="form-group">
+                                <label for="{{ form.exchange_rate_lbp_per_usd.id_for_label }}">
+                                    Exchange rate
+                                </label>
+
+                                {{ form.exchange_rate_lbp_per_usd }}
+
+                                <small class="field-help">
+                                    LBP value for 1 USD.
+                                </small>
+
+                                {% if form.exchange_rate_lbp_per_usd.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.exchange_rate_lbp_per_usd.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            <div class="form-group">
+                                <label>Order pickup</label>
+
+                                <div class="pickup-box">
+                                    <div class="pickup-content">
+                                        <span class="pickup-title">
+                                            Enable customer pickup
+                                        </span>
+
+                                        <span class="pickup-description">
+                                            Allow customers to collect orders directly.
+                                        </span>
+                                    </div>
+
+                                    <label class="toggle">
+                                        {{ form.pickup_available }}
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+
+                                {% if form.pickup_available.errors %}
+                                    <ul class="field-errors">
+                                        {% for error in form.pickup_available.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="form-footer">
+                        <p class="footer-text">
+                            You can update your shop information later.
+                        </p>
+
+                        <button type="submit" class="btn-create">
+                            Create shop
+                        </button>
+                    </div>
+
+                </form>
+
+                <!-- Logout -->
+                <div class="logout-row">
+                    <form
+                        method="post"
+                        action="{% url 'accounts:logout' %}"
+                    >
+                        {% csrf_token %}
+
+                        <button type="submit" class="btn-logout">
+                            Log out
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>

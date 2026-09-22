@@ -1,0 +1,272 @@
+{% extends "accounts/admin_base.html" %}
+
+{% block title %}Pending Registrations{% endblock %}
+{% block meta_description %}Review and approve or reject pending shop owner registrations.{% endblock %}
+
+{% block nav_pending_active %}active{% endblock %}
+{% block nav_pending_aria %}page{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+
+    <header class="admin-page-header">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <div>
+                <h1 class="admin-page-title">Pending Registrations</h1>
+                <p class="admin-page-subtitle">
+                    {% if page_obj.paginator.count == 1 %}
+                        1 account awaiting approval
+                    {% elif page_obj.paginator.count > 1 %}
+                        {{ page_obj.paginator.count }} accounts awaiting approval
+                    {% else %}
+                        All caught up — no accounts awaiting approval
+                    {% endif %}
+                </p>
+            </div>
+            <a href="{% url 'accounts:admin_create_user' %}"
+               class="btn-approve"
+               id="create-user-btn"
+               style="text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:0.4rem;">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Create User
+            </a>
+        </div>
+    </header>
+
+    <div class="admin-card">
+
+        {% if page_obj.object_list %}
+
+        <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Pending registrations">
+                <thead>
+                    <tr>
+                        <th scope="col">Name / Email</th>
+                        <th scope="col">Registered</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pending_user in page_obj %}
+                    <tr>
+                        <td>
+                            <div class="admin-table-name">{{ pending_user.full_name }}</div>
+                            <div class="admin-table-email">{{ pending_user.email }}</div>
+                        </td>
+                        <td class="admin-table-date">
+                            {{ pending_user.date_joined|date:"N j, Y" }}
+                            <br>
+                            <span style="font-size:0.8rem;color:var(--ink-300);">
+                                {{ pending_user.date_joined|time:"g:i A" }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-badge-pending">Pending</span>
+                        </td>
+                        <td>
+                            <div class="admin-table-actions">
+
+                                {# Approve — POST-only, CSRF-protected #}
+                                <form method="post"
+                                      action="{% url 'accounts:approve_user' pending_user.pk %}"
+                                      aria-label="Approve {{ pending_user.full_name }}">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-approve"
+                                            id="approve-{{ pending_user.pk }}"
+                                            onclick="return confirm('Approve {{ pending_user.full_name|escapejs }}?')">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Approve
+                                    </button>
+                                </form>
+
+                                {# Reject — label is "Reject", transitions to SUSPENDED #}
+                                <form method="post"
+                                      action="{% url 'accounts:reject_user' pending_user.pk %}"
+                                      aria-label="Reject {{ pending_user.full_name }}">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-reject"
+                                            id="reject-{{ pending_user.pk }}"
+                                            onclick="return confirm('Reject {{ pending_user.full_name|escapejs }}? Their account will be suspended.')">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Reject
+                                    </button>
+                                </form>
+
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# ---- Pagination ---- #}
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Pagination">
+            <span class="admin-pagination-count">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            <div class="admin-pagination-links">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Previous page">&#8592; Prev</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">&#8592; Prev</span>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <span class="admin-pagination-link current" aria-current="page">{{ num }}</span>
+                    {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                        <a href="?page={{ num }}"
+                           class="admin-pagination-link"
+                           aria-label="Page {{ num }}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Next page">Next &#8594;</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">Next &#8594;</span>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+
+        {% else %}
+
+        {# ---- Empty State ---- #}
+        <div class="admin-empty" id="empty-state">
+            <div class="admin-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h2 class="admin-empty-title">No pending registrations</h2>
+            <p class="admin-empty-text">
+                All self-registered accounts have been reviewed.
+                New registrations will appear here automatically.
+            </p>
+        </div>
+
+        {% endif %}
+
+    </div>{# /.admin-card #}
+
+
+    {# ---- Active Accounts section (SCRUM-41 Part B) ---- #}
+    <div class="admin-card" style="margin-top:2.5rem;">
+
+        <header class="admin-page-header" style="padding:1.5rem 1.5rem 0;">
+            <h2 class="admin-page-title" style="font-size:1.15rem;">Active Accounts</h2>
+        </header>
+
+        {% if active_page_obj.object_list %}
+
+        <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Active accounts">
+                <thead>
+                    <tr>
+                        <th scope="col">Name / Email</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for active_user in active_page_obj %}
+                    <tr>
+                        <td>
+                            <div class="admin-table-name">{{ active_user.full_name }}</div>
+                            <div class="admin-table-email">{{ active_user.email }}</div>
+                        </td>
+                        <td>{{ active_user.get_role_display }}</td>
+                        <td>
+                            {% if active_user.pk != request.user.pk %}
+                            {# Reissue - POST-only, CSRF-protected. Hidden on own row. #}
+                            <form method="post"
+                                  action="{% url 'accounts:admin_reissue_link' active_user.pk %}"
+                                  aria-label="Reissue link for {{ active_user.full_name }}">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn-approve"
+                                        id="reissue-{{ active_user.pk }}"
+                                        onclick="return confirm('Reset this account and generate a new link? Their current password and old links will stop working.')">
+                                    Reissue Link
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color:var(--ink-300);font-size:0.85rem;">(you)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# ---- Pagination for active accounts (uses "apage" param) ---- #}
+        {% if active_page_obj.paginator.num_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Active accounts pagination">
+            <span class="admin-pagination-count">
+                Page {{ active_page_obj.number }} of {{ active_page_obj.paginator.num_pages }}
+            </span>
+            <div class="admin-pagination-links">
+                {% if active_page_obj.has_previous %}
+                    <a href="?apage={{ active_page_obj.previous_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Previous active page">&#8592; Prev</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">&#8592; Prev</span>
+                {% endif %}
+
+                {% for num in active_page_obj.paginator.page_range %}
+                    {% if active_page_obj.number == num %}
+                        <span class="admin-pagination-link current" aria-current="page">{{ num }}</span>
+                    {% elif num >= active_page_obj.number|add:"-2" and num <= active_page_obj.number|add:"2" %}
+                        <a href="?apage={{ num }}"
+                           class="admin-pagination-link"
+                           aria-label="Active page {{ num }}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if active_page_obj.has_next %}
+                    <a href="?apage={{ active_page_obj.next_page_number }}"
+                       class="admin-pagination-link"
+                       aria-label="Next active page">Next &#8594;</a>
+                {% else %}
+                    <span class="admin-pagination-link disabled" aria-disabled="true">Next &#8594;</span>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+
+        {% else %}
+
+        {# ---- Empty State ---- #}
+        <div class="admin-empty" id="active-empty-state">
+            <h2 class="admin-empty-title">No active accounts yet.</h2>
+            <p class="admin-empty-text">
+                Create a user above to see them listed here.
+            </p>
+        </div>
+
+        {% endif %}
+
+    </div>{# /.admin-card active #}
+
+</div>{# /.admin-layout #}
+{% endblock %}
