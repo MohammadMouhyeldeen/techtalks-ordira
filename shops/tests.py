@@ -9,6 +9,11 @@ from PIL import Image
 from accounts.models import User
 from .models import Shop
 
+from datetime import date, timedelta
+
+from .helpers import is_catalog_public
+from .models import Subscription
+
 
 class ShopSetupTests(TestCase):
     def setUp(self):
@@ -518,3 +523,57 @@ class ShopSetupReviewTests(TestCase):
                 slug="large-logo-shop"
             ).exists()
         )
+
+
+class CatalogPublicHelperTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            "catalog@example.com",
+            "testpassword123",
+            full_name="Catalog Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.user,
+            name="Test Shop",
+            slug="test-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        self.today = date.today()
+
+    def test_shop_with_active_subscription_is_public(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today,
+        )
+
+        self.assertTrue(is_catalog_public(self.shop))
+
+    def test_shop_with_no_subscription_is_not_public(self):
+        self.assertFalse(is_catalog_public(self.shop))
+
+    def test_expired_subscription_is_not_public(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today - timedelta(days=30),
+            ends_on=self.today - timedelta(days=1),
+        )
+
+        self.assertFalse(is_catalog_public(self.shop))
+
+    def test_cancelled_subscription_is_not_public(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.CANCELLED,
+            starts_on=self.today - timedelta(days=30),
+        )
+
+        self.assertFalse(is_catalog_public(self.shop))
