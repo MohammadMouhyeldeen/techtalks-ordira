@@ -275,6 +275,30 @@ class ShopSetupReviewTests(TestCase):
             "shops/dashboard.html",
         )
 
+    def test_dashboard_renders_shell_template_includes(self):
+        """
+        Verify that dashboard extends base.html and the shell (base.html)
+        actually renders its includes (navbar, sidebar) — not just that
+        the view resolves.
+        """
+        self.client.force_login(self.owner)
+
+        Shop.objects.create(
+            owner=self.owner,
+            name="Existing Shop",
+            slug="existing-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 200)
+        # Shell-specific markup that would only appear if base.html rendered
+        self.assertContains(response, 'class="navbar"')
+        self.assertContains(response, 'class="sidebar"')
+        # Unique text from sidebar.html
+        self.assertContains(response, "Shop Settings")
+
     def test_admin_stays_on_dashboard(self):
         self.client.force_login(self.admin)
 

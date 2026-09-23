@@ -1,6 +1,5 @@
 <aside class="sidebar">
 
-
     <!-- =========================
          MAIN
     ========================== -->
@@ -10,7 +9,6 @@
         <div class="sidebar-title">
             Main
         </div>
-
 
         <a href="#"
            class="sidebar-link">
@@ -23,7 +21,6 @@
 
     </div>
 
-
     <!-- =========================
          SHOP
     ========================== -->
@@ -33,7 +30,6 @@
         <div class="sidebar-title">
             Shop
         </div>
-
 
         <a href="#"
            class="sidebar-link">
@@ -63,9 +59,7 @@
             <span>Delivery Zones</span>
 
         </a>
-
     </div>
-
 
     <!-- =========================
          CATALOG
@@ -76,7 +70,6 @@
         <div class="sidebar-title">
             Catalog
         </div>
-
 
         <a href="#"
            class="sidebar-link">
@@ -99,7 +92,6 @@
 
     </div>
 
-
     <!-- =========================
          ORDERS
     ========================== -->
@@ -109,7 +101,6 @@
         <div class="sidebar-title">
             Sales
         </div>
-
 
         <a href="#"
            class="sidebar-link">
@@ -129,37 +120,35 @@
             <span>Payment Methods</span>
 
         </a>
-
     </div>
 
+    <!-- =========================
+      ACCOUNT
+    ========================== -->
 
- <!-- =========================
-     ACCOUNT
-========================== -->
+    <div class="sidebar-section">
 
-<div class="sidebar-section">
+        <div class="sidebar-title">
+            Account
+        </div>
 
-    <div class="sidebar-title">
-        Account
+        <a href="#"
+           class="sidebar-link">
+
+            <span class="sidebar-icon">⚙️</span>
+
+            <span>Settings</span>
+
+        </a>
+
+
+       <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="sidebar-link sidebar-logout">
+            <span class="sidebar-icon">🚪</span>
+            <span>Logout</span>
+        </button>
+    </form>
     </div>
 
-    <a href="#"
-       class="sidebar-link">
-
-        <span class="sidebar-icon">⚙️</span>
-
-        <span>Settings</span>
-
-    </a>
-
-
-   <form method="post" action="{% url 'accounts:logout' %}">
-    {% csrf_token %}
-    <button type="submit" class="sidebar-link sidebar-logout">
-        <span class="sidebar-icon">🚪</span>
-        <span>Logout</span>
-    </button>
-</form>
 </aside>
-
-</div>
