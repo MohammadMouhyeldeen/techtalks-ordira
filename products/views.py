@@ -6,8 +6,8 @@ from django.views.decorators.http import require_POST
 
 from shops.models import Shop
 
-from .forms import CategoryForm, ProductForm
-from .models import Category, Product
+from .forms import CategoryForm, ProductForm, ProductVariantForm
+from .models import Category, Product, ProductVariant
 # ---------------------------------------------------------------------------
 # DUMMY DATA — Sprint 2 placeholder for the public storefront pages.
 #
@@ -387,4 +387,156 @@ def owner_product_archive(request, shop_pk, product_pk):
     return redirect(
         "products:product-list",
         shop_pk=shop.pk,
+    )
+
+@login_required
+def owner_variant_detail(request, shop_pk, product_pk, variant_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+    )
+
+    return render(
+        request,
+        "products/variant_detail.html",
+        {
+            "shop": shop,
+            "product": product,
+            "variant": variant,
+        },
+    )
+
+
+@login_required
+def owner_variant_create(request, shop_pk, product_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+    )
+
+    variant_instance = ProductVariant(product=product)
+
+    form = ProductVariantForm(
+        request.POST or None,
+        instance=variant_instance,
+        product=product,
+    )
+
+    if form.is_valid():
+        variant = form.save()
+
+        messages.success(
+            request,
+            "Product variant created successfully.",
+        )
+
+        return redirect(
+            "products:variant-detail",
+            shop_pk=shop.pk,
+            product_pk=product.pk,
+            variant_pk=variant.pk,
+        )
+
+    return render(
+        request,
+        "products/variant_form.html",
+        {
+            "shop": shop,
+            "product": product,
+            "form": form,
+            "page_title": "Create product variant",
+        },
+    )
+
+
+@login_required
+def owner_variant_edit(request, shop_pk, product_pk, variant_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+    )
+
+    form = ProductVariantForm(
+        request.POST or None,
+        instance=variant,
+        product=product,
+    )
+
+    if form.is_valid():
+        variant = form.save()
+
+        messages.success(
+            request,
+            "Product variant updated successfully.",
+        )
+
+        return redirect(
+            "products:variant-detail",
+            shop_pk=shop.pk,
+            product_pk=product.pk,
+            variant_pk=variant.pk,
+        )
+
+    return render(
+        request,
+        "products/variant_form.html",
+        {
+            "shop": shop,
+            "product": product,
+            "variant": variant,
+            "form": form,
+            "page_title": "Edit product variant",
+        },
+    )
+
+
+@login_required
+@require_POST
+def owner_variant_delete(request, shop_pk, product_pk, variant_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+    )
+
+    variant.delete()
+
+    messages.success(
+        request,
+        "Product variant deleted successfully.",
+    )
+
+    return redirect(
+        "products:product-detail",
+        shop_pk=shop.pk,
+        product_pk=product.pk,
     )

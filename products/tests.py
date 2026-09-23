@@ -481,3 +481,252 @@ class ProductViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 405)
+
+class ProductVariantViewTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="variant-owner@example.com",
+            password="testpass123",
+            full_name="Variant Owner",
+            status=User.Status.ACTIVE,
+        )
+        self.other_owner = User.objects.create_user(
+            email="other-variant-owner@example.com",
+            password="testpass123",
+            full_name="Other Variant Owner",
+            status=User.Status.ACTIVE,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Variant Shop",
+            slug="variant-shop",
+            exchange_rate_lbp_per_usd="90000.00",
+        )
+        self.other_shop = Shop.objects.create(
+            owner=self.other_owner,
+            name="Other Variant Shop",
+            slug="other-variant-shop",
+            exchange_rate_lbp_per_usd="90000.00",
+        )
+
+        self.category = Category.objects.create(
+            shop=self.shop,
+            name="Clothing",
+        )
+        self.other_category = Category.objects.create(
+            shop=self.other_shop,
+            name="Accessories",
+        )
+
+        self.product = Product.objects.create(
+            shop=self.shop,
+            category=self.category,
+            name="T-shirt",
+        )
+        self.other_product = Product.objects.create(
+            shop=self.other_shop,
+            category=self.other_category,
+            name="Handbag",
+        )
+
+        self.variant = ProductVariant.objects.create(
+            product=self.product,
+            color="Black",
+            size="M",
+            unit_price="20.00",
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=10,
+            low_stock_threshold=2,
+        )
+        self.other_variant = ProductVariant.objects.create(
+            product=self.other_product,
+            color="Brown",
+            size="One Size",
+            unit_price="30.00",
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=5,
+            low_stock_threshold=1,
+        )
+
+        self.client.force_login(self.owner)
+
+    def test_owner_can_create_variant_for_own_product(self):
+        url = reverse(
+            "products:variant-create",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "color": "White",
+                "size": "L",
+                "unit_price": "22.00",
+                "currency": ProductVariant.Currency.USD,
+                "stock_quantity": 7,
+                "low_stock_threshold": 2,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            ProductVariant.objects.filter(
+                product=self.product,
+                color="White",
+                size="L",
+            ).exists()
+        )
+
+    def test_owner_cannot_create_variant_for_another_product(self):
+        url = reverse(
+            "products:variant-create",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "color": "Red",
+                "size": "S",
+                "unit_price": "25.00",
+                "currency": ProductVariant.Currency.USD,
+                "stock_quantity": 4,
+                "low_stock_threshold": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
+            ProductVariant.objects.filter(
+                product=self.other_product,
+                color="Red",
+                size="S",
+            ).exists()
+        )
+
+    def test_owner_can_edit_own_variant(self):
+        url = reverse(
+            "products:variant-edit",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "color": "Navy",
+                "size": "M",
+                "unit_price": "24.00",
+                "currency": ProductVariant.Currency.USD,
+                "stock_quantity": 12,
+                "low_stock_threshold": 3,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.variant.refresh_from_db()
+        self.assertEqual(self.variant.color, "Navy")
+        self.assertEqual(self.variant.stock_quantity, 12)
+        self.assertEqual(self.variant.low_stock_threshold, 3)
+
+    def test_owner_cannot_edit_another_shops_variant(self):
+        url = reverse(
+            "products:variant-edit",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+                "variant_pk": self.other_variant.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "color": "Changed",
+                "size": "One Size",
+                "unit_price": "35.00",
+                "currency": ProductVariant.Currency.USD,
+                "stock_quantity": 6,
+                "low_stock_threshold": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.other_variant.refresh_from_db()
+        self.assertEqual(self.other_variant.color, "Brown")
+
+    def test_owner_cannot_view_another_shops_variant(self):
+        url = reverse(
+            "products:variant-detail",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+                "variant_pk": self.other_variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_owner_can_delete_own_variant(self):
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            ProductVariant.objects.filter(pk=self.variant.pk).exists()
+        )
+
+    def test_owner_cannot_delete_another_shops_variant(self):
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+                "variant_pk": self.other_variant.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(
+            ProductVariant.objects.filter(
+                pk=self.other_variant.pk
+            ).exists()
+        )
+
+    def test_variant_delete_rejects_get_request(self):
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)

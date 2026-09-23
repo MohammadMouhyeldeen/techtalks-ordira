@@ -53,4 +53,28 @@ urlpatterns = [
         views.owner_product_archive,
         name="product-archive",
     ),
+    # Product variant CRUD
+    path(
+        "shops/<int:shop_pk>/products/<int:product_pk>/variants/create/",
+        views.owner_variant_create,
+        name="variant-create",
+    ),
+    path(
+        "shops/<int:shop_pk>/products/<int:product_pk>/variants/"
+        "<int:variant_pk>/",
+        views.owner_variant_detail,
+        name="variant-detail",
+    ),
+    path(
+        "shops/<int:shop_pk>/products/<int:product_pk>/variants/"
+        "<int:variant_pk>/edit/",
+        views.owner_variant_edit,
+        name="variant-edit",
+    ),
+    path(
+        "shops/<int:shop_pk>/products/<int:product_pk>/variants/"
+        "<int:variant_pk>/delete/",
+        views.owner_variant_delete,
+        name="variant-delete",
+    ),
 ]
