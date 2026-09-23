@@ -6,8 +6,8 @@ from django.views.decorators.http import require_POST
 
 from shops.models import Shop
 
-from .forms import CategoryForm
-from .models import Category
+from .forms import CategoryForm, ProductForm
+from .models import Category, Product
 # ---------------------------------------------------------------------------
 # DUMMY DATA — Sprint 2 placeholder for the public storefront pages.
 #
@@ -252,5 +252,139 @@ def category_archive(request, shop_pk, category_pk):
 
     return redirect(
         "products:category-list",
+        shop_pk=shop.pk,
+    )
+
+@login_required
+def owner_product_list(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    products = (
+        Product.objects
+        .filter(shop=shop, is_active=True)
+        .select_related("category")
+    )
+
+    return render(
+        request,
+        "products/product_list.html",
+        {
+            "shop": shop,
+            "products": products,
+        },
+    )
+
+
+@login_required
+def owner_product_detail(request, shop_pk, product_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product.objects.select_related("category"),
+        pk=product_pk,
+        shop=shop,
+    )
+
+    return render(
+        request,
+        "products/product_detail.html",
+        {
+            "shop": shop,
+            "product": product,
+        },
+    )
+
+
+@login_required
+def owner_product_create(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product_instance = Product(shop=shop)
+
+    form = ProductForm(
+        request.POST or None,
+        request.FILES or None,
+        instance=product_instance,
+        shop=shop,
+    )
+
+    if form.is_valid():
+        product = form.save()
+        messages.success(request, "Product created successfully.")
+
+        return redirect(
+            "products:product-detail",
+            shop_pk=shop.pk,
+            product_pk=product.pk,
+        )
+
+    return render(
+        request,
+        "products/product_form.html",
+        {
+            "shop": shop,
+            "form": form,
+            "page_title": "Create product",
+        },
+    )
+
+
+@login_required
+def owner_product_edit(request, shop_pk, product_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+    )
+
+    form = ProductForm(
+        request.POST or None,
+        request.FILES or None,
+        instance=product,
+        shop=shop,
+    )
+
+    if form.is_valid():
+        product = form.save()
+        messages.success(request, "Product updated successfully.")
+
+        return redirect(
+            "products:product-detail",
+            shop_pk=shop.pk,
+            product_pk=product.pk,
+        )
+
+    return render(
+        request,
+        "products/product_form.html",
+        {
+            "shop": shop,
+            "product": product,
+            "form": form,
+            "page_title": "Edit product",
+        },
+    )
+
+
+@login_required
+@require_POST
+def owner_product_archive(request, shop_pk, product_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+    )
+
+    product.is_active = False
+    product.save(update_fields=["is_active"])
+
+    messages.success(request, "Product archived successfully.")
+
+    return redirect(
+        "products:product-list",
         shop_pk=shop.pk,
     )

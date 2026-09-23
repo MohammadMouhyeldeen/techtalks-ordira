@@ -275,3 +275,209 @@ class CategoryViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 405)
+
+class ProductViewTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="product-owner@example.com",
+            password="testpass123",
+            full_name="Product Owner",
+            status=User.Status.ACTIVE,
+        )
+        self.other_owner = User.objects.create_user(
+            email="other-product-owner@example.com",
+            password="testpass123",
+            full_name="Other Product Owner",
+            status=User.Status.ACTIVE,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="First Shop",
+            slug="first-product-shop",
+            exchange_rate_lbp_per_usd="90000.00",
+        )
+        self.other_shop = Shop.objects.create(
+            owner=self.other_owner,
+            name="Other Shop",
+            slug="other-product-shop",
+            exchange_rate_lbp_per_usd="90000.00",
+        )
+
+        self.category = Category.objects.create(
+            shop=self.shop,
+            name="Clothing",
+        )
+        self.other_category = Category.objects.create(
+            shop=self.other_shop,
+            name="Accessories",
+        )
+
+        self.product = Product.objects.create(
+            shop=self.shop,
+            category=self.category,
+            name="T-shirt",
+            description="Classic cotton T-shirt",
+        )
+        self.other_product = Product.objects.create(
+            shop=self.other_shop,
+            category=self.other_category,
+            name="Handbag",
+        )
+
+        self.client.force_login(self.owner)
+
+    def test_owner_can_create_product_for_own_shop(self):
+        url = reverse(
+            "products:product-create",
+            kwargs={"shop_pk": self.shop.pk},
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "name": "Summer Dress",
+                "description": "Light summer dress",
+                "category": self.category.pk,
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Product.objects.filter(
+                shop=self.shop,
+                name="Summer Dress",
+            ).exists()
+        )
+
+    def test_owner_cannot_create_product_for_another_shop(self):
+        url = reverse(
+            "products:product-create",
+            kwargs={"shop_pk": self.other_shop.pk},
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "name": "Unauthorized Product",
+                "description": "",
+                "category": self.other_category.pk,
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
+            Product.objects.filter(name="Unauthorized Product").exists()
+        )
+
+    def test_owner_can_edit_own_product(self):
+        url = reverse(
+            "products:product-edit",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "name": "Updated T-shirt",
+                "description": "Updated description",
+                "category": self.category.pk,
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, "Updated T-shirt")
+        self.assertEqual(
+            self.product.description,
+            "Updated description",
+        )
+
+    def test_owner_cannot_edit_another_shops_product(self):
+        url = reverse(
+            "products:product-edit",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "name": "Changed Handbag",
+                "description": "",
+                "category": self.other_category.pk,
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.other_product.refresh_from_db()
+        self.assertEqual(self.other_product.name, "Handbag")
+
+    def test_owner_cannot_view_another_shops_product(self):
+        url = reverse(
+            "products:product-detail",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_owner_can_archive_own_product(self):
+        url = reverse(
+            "products:product-archive",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.is_active)
+
+    def test_owner_cannot_archive_another_shops_product(self):
+        url = reverse(
+            "products:product-archive",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+
+        self.other_product.refresh_from_db()
+        self.assertTrue(self.other_product.is_active)
+
+    def test_product_archive_rejects_get_request(self):
+        url = reverse(
+            "products:product-archive",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)
