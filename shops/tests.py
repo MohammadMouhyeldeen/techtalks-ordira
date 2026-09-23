@@ -12,7 +12,7 @@ from .models import Shop
 from datetime import date, timedelta
 
 from .helpers import is_catalog_public
-from .models import Shop, Subscription
+from .models import Subscription
 
 
 class ShopSetupTests(TestCase):
