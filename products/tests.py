@@ -1,3 +1,4 @@
+from django.urls import reverse
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -152,3 +153,125 @@ class ProductFormTests(TestCase):
             "already exists",
             str(form.non_field_errors()),
         )
+
+class CategoryViewTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="view-owner@example.com",
+            password="testpass123",
+            full_name="View Owner",
+            status=User.Status.ACTIVE,
+        )
+        self.other_owner = User.objects.create_user(
+            email="other-view-owner@example.com",
+            password="testpass123",
+            full_name="Other View Owner",
+            status=User.Status.ACTIVE,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="View Shop",
+            slug="view-shop",
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        self.other_shop = Shop.objects.create(
+            owner=self.other_owner,
+            name="Other View Shop",
+            slug="other-view-shop",
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+
+        self.category = Category.objects.create(
+            shop=self.shop,
+            name="Clothing",
+        )
+        self.other_category = Category.objects.create(
+            shop=self.other_shop,
+            name="Accessories",
+        )
+
+        self.client.force_login(self.owner)
+
+    def test_owner_can_create_category_for_own_shop(self):
+        url = reverse(
+            "products:category-create",
+            kwargs={"shop_pk": self.shop.pk},
+        )
+
+        response = self.client.post(
+            url,
+            {"name": "Shoes"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Category.objects.filter(
+                shop=self.shop,
+                name="Shoes",
+            ).exists()
+        )
+
+    def test_owner_cannot_create_category_for_another_shop(self):
+        url = reverse(
+            "products:category-create",
+            kwargs={"shop_pk": self.other_shop.pk},
+        )
+
+        response = self.client.post(
+            url,
+            {"name": "Forbidden Category"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
+            Category.objects.filter(
+                shop=self.other_shop,
+                name="Forbidden Category",
+            ).exists()
+        )
+
+    def test_owner_can_archive_own_category(self):
+        url = reverse(
+            "products:category-archive",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "category_pk": self.category.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+
+        self.category.refresh_from_db()
+        self.assertFalse(self.category.is_active)
+
+    def test_owner_cannot_archive_another_shops_category(self):
+        url = reverse(
+            "products:category-archive",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "category_pk": self.other_category.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+
+        self.other_category.refresh_from_db()
+        self.assertTrue(self.other_category.is_active)
+
+    def test_category_archive_rejects_get_request(self):
+        url = reverse(
+            "products:category-archive",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "category_pk": self.category.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)

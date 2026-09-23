@@ -1,6 +1,13 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.http import Http404
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
+from shops.models import Shop
+
+from .forms import CategoryForm
+from .models import Category
 # ---------------------------------------------------------------------------
 # DUMMY DATA — Sprint 2 placeholder for the public storefront pages.
 #
@@ -129,3 +136,121 @@ def product_detail(request, pk):
         "colors": colors,
         "related_products": related_products,
     })
+
+def get_owner_shop(request, shop_pk):
+    return get_object_or_404(
+        Shop,
+        pk=shop_pk,
+        owner=request.user,
+    )
+
+
+@login_required
+def category_list(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    categories = Category.objects.filter(
+        shop=shop,
+        is_active=True,
+    )
+
+    return render(
+        request,
+        "products/category_list.html",
+        {
+            "shop": shop,
+            "categories": categories,
+        },
+    )
+
+
+@login_required
+def category_create(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    form = CategoryForm(
+        request.POST or None,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        category = form.save(commit=False)
+        category.shop = shop
+        category.save()
+
+        messages.success(request, "Category created successfully.")
+
+        return redirect(
+            "products:category-list",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "products/category_form.html",
+        {
+            "shop": shop,
+            "form": form,
+            "page_title": "Create category",
+        },
+    )
+
+
+@login_required
+def category_edit(request, shop_pk, category_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    category = get_object_or_404(
+        Category,
+        pk=category_pk,
+        shop=shop,
+    )
+
+    form = CategoryForm(
+        request.POST or None,
+        instance=category,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Category updated successfully.")
+
+        return redirect(
+            "products:category-list",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "products/category_form.html",
+        {
+            "shop": shop,
+            "category": category,
+            "form": form,
+            "page_title": "Edit category",
+        },
+    )
+
+
+@login_required
+@require_POST
+def category_archive(request, shop_pk, category_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    category = get_object_or_404(
+        Category,
+        pk=category_pk,
+        shop=shop,
+        is_active=True,
+    )
+
+    category.is_active = False
+    category.save(update_fields=["is_active"])
+
+    messages.success(request, "Category archived successfully.")
+
+    return redirect(
+        "products:category-list",
+        shop_pk=shop.pk,
+    )

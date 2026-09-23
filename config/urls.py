@@ -37,6 +37,7 @@ urlpatterns = [
     # shop-scoped scheme (e.g. shop/<slug:shop_slug>/...) once that's decided.
     path("catalog/", products_views.public_catalog, name="public_catalog"),
     path("catalog/<int:pk>/", products_views.product_detail, name="product_detail"),
+    path("products/", include("products.urls")),
 ]
 
 if settings.DEBUG:
