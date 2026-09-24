@@ -286,12 +286,18 @@ def owner_product_detail(request, shop_pk, product_pk):
         shop=shop,
     )
 
+    variants = ProductVariant.objects.filter(
+        product=product,
+        is_active=True,
+    )
+
     return render(
         request,
         "products/product_detail.html",
         {
             "shop": shop,
             "product": product,
+            "variants": variants,
         },
     )
 
@@ -404,6 +410,7 @@ def owner_variant_detail(request, shop_pk, product_pk, variant_pk):
         ProductVariant,
         pk=variant_pk,
         product=product,
+        is_active=True,
     )
 
     return render(
@@ -476,6 +483,7 @@ def owner_variant_edit(request, shop_pk, product_pk, variant_pk):
         ProductVariant,
         pk=variant_pk,
         product=product,
+        is_active=True,
     )
 
     form = ProductVariantForm(

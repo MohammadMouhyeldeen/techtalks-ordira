@@ -769,3 +769,59 @@ class ProductVariantViewTests(TestCase):
                 variant=self.variant,
             ).exists()
         )
+
+    def test_archived_variant_cannot_be_viewed(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-detail",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_archived_variant_cannot_be_edited(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-edit",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_archived_variant_cannot_be_deleted_again(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+
+        self.variant.refresh_from_db()
+        self.assertFalse(self.variant.is_active)
