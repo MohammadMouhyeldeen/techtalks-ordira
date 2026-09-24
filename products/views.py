@@ -4,11 +4,17 @@ from django.db.models.deletion import ProtectedError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
-
+from django.core.exceptions import ValidationError
 from shops.models import Shop
 
-from .forms import CategoryForm, ProductForm, ProductVariantForm
+from .forms import (
+    CategoryForm,
+    ProductForm,
+    ProductVariantForm,
+    StockAdjustmentForm,
+)
 from .models import Category, Product, ProductVariant
+from .services import adjust_variant_stock
 # ---------------------------------------------------------------------------
 # DUMMY DATA — Sprint 2 placeholder for the public storefront pages.
 #
@@ -567,4 +573,69 @@ def owner_variant_delete(request, shop_pk, product_pk, variant_pk):
         "products:product-detail",
         shop_pk=shop.pk,
         product_pk=product.pk,
+    )
+
+@login_required
+def owner_variant_stock_adjust(
+    request,
+    shop_pk,
+    product_pk,
+    variant_pk,
+):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+        is_active=True,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+        is_active=True,
+    )
+
+    form = StockAdjustmentForm(
+        request.POST or None,
+        variant=variant,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            adjust_variant_stock(
+                variant=variant,
+                change_qty=form.cleaned_data["change_qty"],
+                reason=form.cleaned_data["reason"],
+                created_by=request.user,
+            )
+        except ValidationError as error:
+            form.add_error(
+                "change_qty",
+                error.messages[0],
+            )
+        else:
+            messages.success(
+                request,
+                "Stock adjusted successfully.",
+            )
+
+            return redirect(
+                "products:product-detail",
+                shop_pk=shop.pk,
+                product_pk=product.pk,
+            )
+
+    return render(
+        request,
+        "products/stock_adjustment_form.html",
+        {
+            "shop": shop,
+            "product": product,
+            "variant": variant,
+            "form": form,
+            "page_title": "Adjust stock",
+        },
     )
