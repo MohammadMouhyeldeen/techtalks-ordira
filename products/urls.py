@@ -78,6 +78,12 @@ urlpatterns = [
         name="variant-stock-adjust",
     ),
     path(
+    "shops/<int:shop_pk>/products/<int:product_pk>/variants/"
+    "<int:variant_pk>/stock/history/",
+    views.owner_variant_stock_history,
+    name="variant-stock-history",
+    ),
+    path(
         "shops/<int:shop_pk>/products/<int:product_pk>/variants/"
         "<int:variant_pk>/delete/",
         views.owner_variant_delete,

@@ -1021,6 +1021,87 @@ class ProductVariantViewTests(TestCase):
                 variant=self.variant,
             ).exists()
         )
+    def test_owner_can_view_stock_history_newest_first(self):
+        first_movement = StockMovement.objects.create(
+            variant=self.variant,
+            created_by=self.owner,
+            change_qty=5,
+            reason=StockMovement.Reason.RESTOCK,
+        )
+        second_movement = StockMovement.objects.create(
+            variant=self.variant,
+            created_by=self.owner,
+            change_qty=-2,
+            reason=StockMovement.Reason.DAMAGE,
+        )
+
+        url = reverse(
+            "products:variant-stock-history",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        with patch(
+            "products.views.render",
+            return_value=HttpResponse(),
+        ) as mocked_render:
+            response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        context = mocked_render.call_args.args[2]
+
+        self.assertEqual(context["shop"], self.shop)
+        self.assertEqual(context["product"], self.product)
+        self.assertEqual(context["variant"], self.variant)
+        self.assertEqual(
+            list(context["movements"]),
+            [second_movement, first_movement],
+        )
+        self.assertEqual(second_movement.created_by, self.owner)
+
+    def test_owner_cannot_view_another_shops_stock_history(self):
+        StockMovement.objects.create(
+            variant=self.other_variant,
+            created_by=self.other_owner,
+            change_qty=3,
+            reason=StockMovement.Reason.RESTOCK,
+        )
+
+        url = reverse(
+            "products:variant-stock-history",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+                "variant_pk": self.other_variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_archived_variant_stock_history_returns_404(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-stock-history",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
 class StockAdjustmentServiceTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(

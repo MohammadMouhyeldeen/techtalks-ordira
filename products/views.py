@@ -639,3 +639,43 @@ def owner_variant_stock_adjust(
             "page_title": "Adjust stock",
         },
     )
+
+@login_required
+def owner_variant_stock_history(
+    request,
+    shop_pk,
+    product_pk,
+    variant_pk,
+):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+        is_active=True,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+        is_active=True,
+    )
+
+    movements = (
+        variant.stock_movements
+        .select_related("created_by")
+        .order_by("-created_at")
+    )
+
+    return render(
+        request,
+        "products/stock_movement_history.html",
+        {
+            "shop": shop,
+            "product": product,
+            "variant": variant,
+            "movements": movements,
+        },
+    )
