@@ -84,10 +84,9 @@ class ProductVariantForm(forms.ModelForm):
             "size",
             "unit_price",
             "currency",
-            "stock_quantity",
             "low_stock_threshold",
         ]
-
+        
     def __init__(self, *args, product=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.product = product

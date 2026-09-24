@@ -161,6 +161,10 @@ class ProductFormTests(TestCase):
             "already exists",
             str(form.non_field_errors()),
         )
+    def test_variant_form_does_not_allow_direct_stock_editing(self):
+        form = ProductVariantForm(product=self.product)
+
+        self.assertNotIn("stock_quantity", form.fields)
 
 class CategoryViewTests(TestCase):
     def setUp(self):
@@ -581,12 +585,16 @@ class ProductVariantViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            ProductVariant.objects.filter(
-                product=self.product,
-                color="White",
-                size="L",
-            ).exists()
+
+        variant = ProductVariant.objects.get(
+            product=self.product,
+            color="White",
+            size="L",
+        )
+
+        self.assertEqual(variant.stock_quantity, 0)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=variant).exists()
         )
 
     def test_owner_cannot_create_variant_for_another_product(self):
@@ -645,7 +653,7 @@ class ProductVariantViewTests(TestCase):
 
         self.variant.refresh_from_db()
         self.assertEqual(self.variant.color, "Navy")
-        self.assertEqual(self.variant.stock_quantity, 12)
+        self.assertEqual(self.variant.stock_quantity, 10)
         self.assertEqual(self.variant.low_stock_threshold, 3)
 
     def test_owner_cannot_edit_another_shops_variant(self):
