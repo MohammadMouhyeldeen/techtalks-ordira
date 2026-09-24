@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from accounts.models import User
 from shops.models import Shop
+from .services import adjust_variant_stock
 
 from .forms import CategoryForm, ProductForm, ProductVariantForm
 from .models import Category, Product, ProductVariant, StockMovement
@@ -825,3 +826,148 @@ class ProductVariantViewTests(TestCase):
 
         self.variant.refresh_from_db()
         self.assertFalse(self.variant.is_active)
+
+class StockAdjustmentServiceTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="inventory@example.com",
+            password="testpass123",
+            full_name="Inventory Owner",
+            status=User.Status.ACTIVE,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Inventory Shop",
+            slug="inventory-shop",
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+
+        self.category = Category.objects.create(
+            shop=self.shop,
+            name="Clothing",
+        )
+
+        self.product = Product.objects.create(
+            shop=self.shop,
+            category=self.category,
+            name="Classic T-shirt",
+        )
+
+        self.variant = ProductVariant.objects.create(
+            product=self.product,
+            color="Black",
+            size="M",
+            unit_price=Decimal("15.00"),
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=10,
+            low_stock_threshold=3,
+        )
+
+    def test_restock_increases_quantity_and_creates_movement(self):
+        movement = adjust_variant_stock(
+            variant=self.variant,
+            change_qty=5,
+            reason=StockMovement.Reason.RESTOCK,
+            created_by=self.owner,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 15)
+        self.assertEqual(movement.variant, self.variant)
+        self.assertEqual(movement.change_qty, 5)
+        self.assertEqual(movement.reason, StockMovement.Reason.RESTOCK)
+        self.assertEqual(movement.created_by, self.owner)
+
+    def test_negative_adjustment_decreases_stock(self):
+        movement = adjust_variant_stock(
+            variant=self.variant,
+            change_qty=-4,
+            reason=StockMovement.Reason.DAMAGE,
+            created_by=self.owner,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 6)
+        self.assertEqual(movement.change_qty, -4)
+
+    def test_adjustment_cannot_make_stock_negative(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "This adjustment would make the stock quantity negative.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=-11,
+                reason=StockMovement.Reason.ADJUSTMENT,
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+    def test_zero_adjustment_is_rejected(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Stock adjustment quantity cannot be zero.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=0,
+                reason=StockMovement.Reason.ADJUSTMENT,
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+    def test_archived_variant_cannot_be_adjusted(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Archived product variants cannot be adjusted.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=5,
+                reason=StockMovement.Reason.RESTOCK,
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+    def test_invalid_reason_is_rejected(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Invalid stock movement reason.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=5,
+                reason="INVALID",
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
