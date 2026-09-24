@@ -93,7 +93,7 @@ class ProductVariant(models.Model):
     )
     stock_quantity = models.PositiveIntegerField(default=0)
     low_stock_threshold = models.PositiveIntegerField(default=0)
-
+    is_active = models.BooleanField(default=True)
     class Meta:
         constraints = [
             models.UniqueConstraint(
