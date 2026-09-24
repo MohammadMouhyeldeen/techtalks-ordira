@@ -8,8 +8,7 @@ from accounts.models import User
 from shops.models import Shop
 
 from .forms import CategoryForm, ProductForm, ProductVariantForm
-from .models import Category, Product, ProductVariant
-
+from .models import Category, Product, ProductVariant, StockMovement
 
 class ProductFormTests(TestCase):
     def setUp(self):
@@ -730,3 +729,43 @@ class ProductVariantViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 405)
+
+    def test_variant_with_stock_movement_is_archived_instead_of_deleted(self):
+        StockMovement.objects.create(
+            variant=self.variant,
+            created_by=self.owner,
+            change_qty=5,
+            reason=StockMovement.Reason.RESTOCK,
+        )
+
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "products:product-detail",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "product_pk": self.product.pk,
+                },
+            ),
+            fetch_redirect_response=False,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertFalse(self.variant.is_active)
+        self.assertTrue(
+            StockMovement.objects.filter(
+                variant=self.variant,
+            ).exists()
+        )

@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models.deletion import ProtectedError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -526,14 +527,33 @@ def owner_variant_delete(request, shop_pk, product_pk, variant_pk):
         ProductVariant,
         pk=variant_pk,
         product=product,
+        is_active=True,
     )
 
-    variant.delete()
+    if variant.stock_movements.exists():
+        variant.is_active = False
+        variant.save(update_fields=["is_active"])
 
-    messages.success(
-        request,
-        "Product variant deleted successfully.",
-    )
+        messages.success(
+            request,
+            "Product variant archived successfully.",
+        )
+    else:
+        try:
+            variant.delete()
+
+            messages.success(
+                request,
+                "Product variant deleted successfully.",
+            )
+        except ProtectedError:
+            variant.is_active = False
+            variant.save(update_fields=["is_active"])
+
+            messages.success(
+                request,
+                "Product variant archived successfully.",
+            )
 
     return redirect(
         "products:product-detail",
