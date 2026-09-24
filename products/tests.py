@@ -8,7 +8,7 @@ from accounts.models import User
 from shops.models import Shop
 from .services import adjust_variant_stock
 
-from .forms import CategoryForm, ProductForm, ProductVariantForm
+from .forms import CategoryForm, ProductForm, ProductVariantForm, StockAdjustmentForm
 from .models import Category, Product, ProductVariant, StockMovement
 
 class ProductFormTests(TestCase):
@@ -970,4 +970,79 @@ class StockAdjustmentServiceTests(TestCase):
         self.assertEqual(self.variant.stock_quantity, 10)
         self.assertFalse(
             StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+class StockAdjustmentFormTests(TestCase):
+    def setUp(self):
+        self.variant = ProductVariant(stock_quantity=10)
+
+    def test_positive_stock_adjustment_is_valid(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": 5,
+                "reason": StockMovement.Reason.RESTOCK,
+            },
+            variant=self.variant,
+        )
+
+        self.assertTrue(form.is_valid())
+
+    def test_negative_stock_adjustment_is_valid_when_stock_is_available(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": -4,
+                "reason": StockMovement.Reason.DAMAGE,
+            },
+            variant=self.variant,
+        )
+
+        self.assertTrue(form.is_valid())
+
+    def test_zero_stock_adjustment_is_invalid(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": 0,
+                "reason": StockMovement.Reason.ADJUSTMENT,
+            },
+            variant=self.variant,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertFormError(
+            form,
+            "change_qty",
+            "Stock adjustment quantity cannot be zero.",
+        )
+
+    def test_adjustment_cannot_make_stock_negative(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": -11,
+                "reason": StockMovement.Reason.ADJUSTMENT,
+            },
+            variant=self.variant,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertFormError(
+            form,
+            "change_qty",
+            "This adjustment would make the stock quantity negative.",
+        )
+
+    def test_form_only_allows_manual_movement_reasons(self):
+        form = StockAdjustmentForm(variant=self.variant)
+
+        reason_values = [
+            value
+            for value, label in form.fields["reason"].choices
+        ]
+
+        self.assertIn(StockMovement.Reason.RESTOCK, reason_values)
+        self.assertIn(StockMovement.Reason.ADJUSTMENT, reason_values)
+        self.assertIn(StockMovement.Reason.DAMAGE, reason_values)
+        self.assertNotIn(StockMovement.Reason.SALE, reason_values)
+        self.assertNotIn(
+            StockMovement.Reason.CANCELLATION,
+            reason_values,
         )
