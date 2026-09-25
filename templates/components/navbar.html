@@ -1,4 +1,4 @@
-
+{% load shop_extras %}
 <nav class="navbar">
 
     <!-- LEFT SIDE -->
@@ -9,7 +9,7 @@
             class="menu-toggle"
             onclick="toggleSidebar()"
             aria-label="Open navigation menu">
-            ☰
+            <svg width="22" height="22"><use href="#i-menu"/></svg>
         </button>
 
         <!-- Logo -->
@@ -26,7 +26,7 @@
         <button
             class="notification-btn"
             aria-label="Notifications">
-            🔔
+            <svg width="19" height="19"><use href="#i-bell"/></svg>
             {% if unread_notifications %}
                 <span class="notification-badge">
                     {{ unread_notifications }}
@@ -35,31 +35,78 @@
         </button>
 
         <!-- User -->
-        <div class="user-menu">
+        <div class="user-menu" id="userMenu">
 
-            <div class="user-avatar">
-                {% if request.user.full_name %}
-                    {{ request.user.full_name|first|upper }}
-                {% else %}
-                    {{ request.user.email|first|upper }}
-                {% endif %}
-            </div>
-
-            <div class="user-info">
-                <span class="user-name">
+            <button type="button" class="user-menu-trigger" id="userMenuTrigger" aria-haspopup="true" aria-expanded="false">
+                <div class="user-avatar">
                     {% if request.user.full_name %}
-                        {{ request.user.full_name }}
+                        {{ request.user.full_name|first|upper }}
                     {% else %}
-                        {{ request.user.email }}
+                        {{ request.user.email|first|upper }}
                     {% endif %}
-                </span>
+                </div>
 
-                <span class="user-role">
-                    {{ request.user.get_role_display }}
-                </span>
+                <div class="user-info">
+                    <span class="user-name">
+                        {% if request.user.full_name %}
+                            {{ request.user.full_name }}
+                        {% else %}
+                            {{ request.user.email }}
+                        {% endif %}
+                    </span>
+
+                    <span class="user-role">
+                        {{ request.user.get_role_display }}
+                    </span>
+                </div>
+
+                <svg width="14" height="14" class="user-menu-chevron"><use href="#i-chevron-down"/></svg>
+            </button>
+
+            <div class="user-menu-panel" id="userMenuPanel">
+                <div class="user-menu-panel__header">
+                    <div class="user-avatar">
+                        {% if request.user.full_name %}
+                            {{ request.user.full_name|first|upper }}
+                        {% else %}
+                            {{ request.user.email|first|upper }}
+                        {% endif %}
+                    </div>
+                    <div>
+                        <strong class="user-menu-panel__name">
+                            {% if request.user.full_name %}
+                                {{ request.user.full_name }}
+                            {% else %}
+                                {{ request.user.email }}
+                            {% endif %}
+                        </strong>
+                        <span class="user-menu-panel__role">{{ request.user.get_role_display }}</span>
+                    </div>
+                </div>
+
+                <div class="user-menu-panel__body">
+                    <div class="user-menu-panel__row">
+                        <svg width="16" height="16"><use href="#i-mail"/></svg>
+                        <span>{{ request.user.email }}</span>
+                    </div>
+                    <div class="user-menu-panel__row">
+                        <svg width="16" height="16" class="icon-whatsapp"><use href="#i-wa"/></svg>
+                        <span>{{ shop.whatsapp|format_whatsapp|default:"Not set" }}</span>
+                    </div>
+                    <div class="user-menu-panel__row">
+                        <svg width="16" height="16"><use href="#i-ig"/></svg>
+                        <span>{{ shop.instagram|default:"Not set" }}</span>
+                    </div>
+                </div>
+
+                <form method="post" action="{% url 'accounts:logout' %}" class="user-menu-panel__footer">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger user-menu-panel__logout">
+                        <svg width="16" height="16"><use href="#i-logout"/></svg>
+                        Logout
+                    </button>
+                </form>
             </div>
-
-            <span>⌄</span>
         </div>
 
         </div>
@@ -74,4 +121,30 @@
             sidebar.classList.toggle("open");
         }
     }
+
+    (() => {
+        const menu = document.getElementById("userMenu");
+        const trigger = document.getElementById("userMenuTrigger");
+        const panel = document.getElementById("userMenuPanel");
+        if (!menu || !trigger || !panel) return;
+
+        const closeMenu = () => {
+            menu.classList.remove("is-open");
+            trigger.setAttribute("aria-expanded", "false");
+        };
+
+        trigger.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const isOpen = menu.classList.toggle("is-open");
+            trigger.setAttribute("aria-expanded", String(isOpen));
+        });
+
+        document.addEventListener("click", (event) => {
+            if (!menu.contains(event.target)) closeMenu();
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeMenu();
+        });
+    })();
 </script>
