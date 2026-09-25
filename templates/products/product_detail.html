@@ -1,86 +1,173 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ product.name }} | Ordira{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
+
 {% block content %}
 
-<div class="page-header">
-    <h1 class="page-title">{{ product.name }}</h1>
-    <p class="page-subtitle">
-        Category: {{ product.category.name }}
-    </p>
+<div class="inventory-page">
+    <div class="inventory-header">
+        <div>
+            <a
+                class="back-link"
+                href="{% url 'products:product-list' shop_pk=shop.pk %}"
+            >
+                ← Back to products
+            </a>
+
+            <h1 class="inventory-title">{{ product.name }}</h1>
+
+            <p class="inventory-subtitle">
+                Category: {{ product.category.name }}
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <a
+                class="btn btn-secondary"
+                href="{% url 'products:product-edit' shop_pk=shop.pk product_pk=product.pk %}"
+            >
+                Edit product
+            </a>
+
+            <a
+                class="btn btn-primary"
+                href="{% url 'products:variant-create' shop_pk=shop.pk product_pk=product.pk %}"
+            >
+                Add variant
+            </a>
+        </div>
+    </div>
+
+    <section class="product-summary-card">
+        <span class="section-label">Product description</span>
+
+        <p class="product-description">
+            {{ product.description|default:"No description provided." }}
+        </p>
+    </section>
+
+    <section class="inventory-card">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Product variants</h2>
+
+                <p class="section-description">
+                    Manage pricing, stock levels, and inventory history.
+                </p>
+            </div>
+
+            <span class="variant-count">
+                {{ variants|length }} variant{{ variants|length|pluralize }}
+            </span>
+        </div>
+
+        {% if variants %}
+            <div class="table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Color</th>
+                            <th>Size</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Low-stock threshold</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for variant in variants %}
+                            <tr>
+                                <td>
+                                    <strong>{{ variant.color }}</strong>
+                                </td>
+
+                                <td>{{ variant.size }}</td>
+
+                                <td class="price-cell">
+                                    {{ variant.unit_price }}
+                                    {{ variant.currency }}
+                                </td>
+
+                                <td>
+                                    <span class="stock-quantity">
+                                        {{ variant.stock_quantity }}
+                                    </span>
+                                </td>
+
+                                <td>{{ variant.low_stock_threshold }}</td>
+
+                                <td>
+                                    {% if variant.is_low_stock %}
+                                        <span class="status-badge status-low">
+                                            Low stock
+                                        </span>
+                                    {% else %}
+                                        <span class="status-badge status-in-stock">
+                                            In stock
+                                        </span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <div class="table-actions">
+                                        <a
+                                            href="{% url 'products:variant-detail' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+                                        >
+                                            View
+                                        </a>
+
+                                        <a
+                                            href="{% url 'products:variant-edit' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+                                        >
+                                            Edit
+                                        </a>
+
+                                        <a
+                                            class="action-highlight"
+                                            href="{% url 'products:variant-stock-adjust' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+                                        >
+                                            Adjust stock
+                                        </a>
+
+                                        <a
+                                            href="{% url 'products:variant-stock-history' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+                                        >
+                                            History
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">+</div>
+
+                <h3>No active variants</h3>
+
+                <p>
+                    Add the first variant to start managing this
+                    product’s price and inventory.
+                </p>
+
+                <a
+                    class="btn btn-primary"
+                    href="{% url 'products:variant-create' shop_pk=shop.pk product_pk=product.pk %}"
+                >
+                    Add first variant
+                </a>
+            </div>
+        {% endif %}
+    </section>
 </div>
-
-<p>{{ product.description|default:"No description provided." }}</p>
-
-<p>
-    <a href="{% url 'products:product-list' shop_pk=shop.pk %}">
-        Back to products
-    </a>
-    |
-    <a href="{% url 'products:product-edit' shop_pk=shop.pk product_pk=product.pk %}">
-        Edit product
-    </a>
-    |
-    <a href="{% url 'products:variant-create' shop_pk=shop.pk product_pk=product.pk %}">
-        Add variant
-    </a>
-</p>
-
-<h2>Product variants</h2>
-
-{% if variants %}
-    <table>
-        <thead>
-            <tr>
-                <th>Color</th>
-                <th>Size</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Low-stock threshold</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for variant in variants %}
-                <tr>
-                    <td>{{ variant.color }}</td>
-                    <td>{{ variant.size }}</td>
-                    <td>{{ variant.unit_price }} {{ variant.currency }}</td>
-                    <td>{{ variant.stock_quantity }}</td>
-                    <td>{{ variant.low_stock_threshold }}</td>
-                    <td>
-                        {% if variant.is_low_stock %}
-                            <strong>⚠ Low stock</strong>
-                        {% else %}
-                            In stock
-                        {% endif %}
-                    </td>
-                    <td>
-                        <a href="{% url 'products:variant-detail' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
-                            View
-                        </a>
-                        |
-                        <a href="{% url 'products:variant-edit' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
-                            Edit
-                        </a>
-                        |
-                        <a href="{% url 'products:variant-stock-adjust' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
-                            Adjust stock
-                        </a>
-                        |
-                        <a href="{% url 'products:variant-stock-history' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
-                            Stock history
-                        </a>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>This product does not have any active variants yet.</p>
-{% endif %}
 
 {% endblock %}

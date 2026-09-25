@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Adjust Stock | Ordira{% endblock %}
+{% block title %}{{ page_title }} | Ordira{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'products/css/products.css' %}">
@@ -19,40 +19,22 @@
                 ← Back to product
             </a>
 
-            <h1 class="inventory-title">Adjust stock</h1>
+            <h1 class="inventory-title">{{ page_title }}</h1>
 
             <p class="inventory-subtitle">
-                {{ product.name }} &mdash;
-                {{ variant.color }} / {{ variant.size }}
+                Product: {{ product.name }}
             </p>
         </div>
-    </div>
-
-    <div class="stock-overview-card">
-        <div>
-            <span class="section-label">Current stock</span>
-
-            <strong class="current-stock-number">
-                {{ variant.stock_quantity }}
-            </strong>
-        </div>
-
-        {% if variant.is_low_stock %}
-            <span class="status-badge status-low">Low stock</span>
-        {% else %}
-            <span class="status-badge status-in-stock">In stock</span>
-        {% endif %}
     </div>
 
     <section class="inventory-card form-card">
         <div class="section-header">
             <div>
-                <h2 class="section-title">Stock adjustment</h2>
+                <h2 class="section-title">Variant information</h2>
 
                 <p class="section-description">
-                    Enter a positive number to increase stock or a negative
-                    number to decrease it. Every successful adjustment is
-                    recorded in the stock-movement history.
+                    Set the color, size, price, currency, and low-stock
+                    threshold for this variant.
                 </p>
             </div>
         </div>
@@ -87,7 +69,7 @@
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
-                    Save adjustment
+                    Save variant
                 </button>
 
                 <a
