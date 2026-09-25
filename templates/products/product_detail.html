@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} | Ordira{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h1 class="page-title">{{ product.name }}</h1>
+    <p class="page-subtitle">
+        Category: {{ product.category.name }}
+    </p>
+</div>
+
+<p>{{ product.description|default:"No description provided." }}</p>
+
+<p>
+    <a href="{% url 'products:product-list' shop_pk=shop.pk %}">
+        Back to products
+    </a>
+    |
+    <a href="{% url 'products:product-edit' shop_pk=shop.pk product_pk=product.pk %}">
+        Edit product
+    </a>
+    |
+    <a href="{% url 'products:variant-create' shop_pk=shop.pk product_pk=product.pk %}">
+        Add variant
+    </a>
+</p>
+
+<h2>Product variants</h2>
+
+{% if variants %}
+    <table>
+        <thead>
+            <tr>
+                <th>Color</th>
+                <th>Size</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Low-stock threshold</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for variant in variants %}
+                <tr>
+                    <td>{{ variant.color }}</td>
+                    <td>{{ variant.size }}</td>
+                    <td>{{ variant.unit_price }} {{ variant.currency }}</td>
+                    <td>{{ variant.stock_quantity }}</td>
+                    <td>{{ variant.low_stock_threshold }}</td>
+                    <td>
+                        {% if variant.is_low_stock %}
+                            <strong>⚠ Low stock</strong>
+                        {% else %}
+                            In stock
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'products:variant-detail' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
+                            View
+                        </a>
+                        |
+                        <a href="{% url 'products:variant-edit' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
+                            Edit
+                        </a>
+                        |
+                        <a href="{% url 'products:variant-stock-adjust' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
+                            Adjust stock
+                        </a>
+                        |
+                        <a href="{% url 'products:variant-stock-history' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}">
+                            Stock history
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>This product does not have any active variants yet.</p>
+{% endif %}
+
+{% endblock %}

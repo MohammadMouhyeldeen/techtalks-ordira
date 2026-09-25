@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Adjust Stock | Ordira{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h1 class="page-title">Adjust stock</h1>
+    <p class="page-subtitle">
+        {{ product.name }} — {{ variant.color }} / {{ variant.size }}
+    </p>
+</div>
+
+<p>
+    Current stock:
+    <strong>{{ variant.stock_quantity }}</strong>
+</p>
+
+<p>
+    Enter a positive number to increase stock or a negative number to decrease it.
+    Every successful adjustment will be saved in the stock-movement history.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    {% for field in form %}
+        <div>
+            {{ field.label_tag }}
+            {{ field }}
+
+            {% if field.help_text %}
+                <small>{{ field.help_text }}</small>
+            {% endif %}
+
+            {{ field.errors }}
+        </div>
+    {% endfor %}
+
+    <button type="submit">Save adjustment</button>
+
+    <a href="{% url 'products:product-detail' shop_pk=shop.pk product_pk=product.pk %}">
+        Cancel
+    </a>
+</form>
+
+{% endblock %}

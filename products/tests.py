@@ -288,6 +288,8 @@ class CategoryViewTests(TestCase):
 
         self.assertEqual(response.status_code, 405)
 
+
+
 class ProductViewTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(
@@ -493,6 +495,31 @@ class ProductViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 405)
+
+class ProductVariantModelTests(TestCase):
+    def test_stock_below_threshold_is_low_stock(self):
+        variant = ProductVariant(
+            stock_quantity=2,
+            low_stock_threshold=3,
+        )
+
+        self.assertTrue(variant.is_low_stock)
+
+    def test_stock_equal_to_threshold_is_low_stock(self):
+        variant = ProductVariant(
+            stock_quantity=3,
+            low_stock_threshold=3,
+        )
+
+        self.assertTrue(variant.is_low_stock)
+
+    def test_stock_above_threshold_is_not_low_stock(self):
+        variant = ProductVariant(
+            stock_quantity=4,
+            low_stock_threshold=3,
+        )
+
+        self.assertFalse(variant.is_low_stock)
 
 class ProductVariantViewTests(TestCase):
     def setUp(self):
@@ -1101,6 +1128,28 @@ class ProductVariantViewTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_product_detail_displays_low_stock_warning(self):
+        self.variant.stock_quantity = 3
+        self.variant.low_stock_threshold = 3
+        self.variant.save(
+            update_fields=[
+                "stock_quantity",
+                "low_stock_threshold",
+            ]
+        )
+
+        url = reverse(
+            "products:product-detail",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Low stock")
 
 class StockAdjustmentServiceTests(TestCase):
     def setUp(self):
