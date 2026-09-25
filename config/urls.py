@@ -20,7 +20,7 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import TemplateView
 
-from products import views as products_views
+from products import storefront_views
 
 
 urlpatterns = [
@@ -32,11 +32,12 @@ urlpatterns = [
         TemplateView.as_view(template_name="landing/landing.html"),
         name="home",
     ),
-    # TEMPORARY: placeholder routes for the Sprint 2 public storefront
-    # templates (dummy data, no shop scoping yet). Replace with the real
-    # shop-scoped scheme (e.g. shop/<slug:shop_slug>/...) once that's decided.
-    path("catalog/", products_views.public_catalog, name="public_catalog"),
-    path("catalog/<int:pk>/", products_views.product_detail, name="product_detail"),
+    path("store/<slug:shop_slug>/", storefront_views.public_catalog, name="public_catalog"),
+    path(
+        "store/<slug:shop_slug>/products/<int:product_pk>/",
+        storefront_views.product_detail,
+        name="product_detail",
+    ),
     path("products/", include("products.urls")),
 ]
 

@@ -6,23 +6,14 @@
 
 {% block content %}
 
-<!--
-  DUMMY DATA NOTICE
-  `product` / `colors` / `related_products` come from
-  products/views.py::product_detail (DUMMY_PRODUCTS). Once real
-  Category/Product/Variant querysets exist, swap the view's context for
-  get_object_or_404(Product, pk=pk, shop=shop) + its .variants — this
-  template does not need to change field names, only where they come from.
--->
-
 <div class="container">
-  <a href="{% url 'public_catalog' %}" class="btn btn-ghost btn-sm back-link">
+  <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-ghost btn-sm back-link">
     <svg width="16" height="16" class="back-link__icon"><use href="#i-arrow"/></svg>
     Back to catalog
   </a>
 
   <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href="{% url 'public_catalog' %}">Catalog</a>
+    <a href="{% url 'public_catalog' shop.slug %}">Catalog</a>
     <svg width="14" height="14"><use href="#i-arrow"/></svg>
     <span>{{ product.name }}</span>
   </nav>
@@ -45,7 +36,7 @@
 
     <div class="product-detail__info reveal" style="--delay:80ms">
       <div>
-        <span class="product-detail__category">{{ product.category }}</span>
+        <span class="product-detail__category">{{ product.category.name }}</span>
         <h1 class="product-detail__name">{{ product.name }}</h1>
       </div>
 
@@ -60,10 +51,9 @@
           {% for c in colors %}
             <button type="button"
                     class="variant-swatch{% if forloop.first %} active{% endif %}"
-                    style="background:{{ c.hex }}"
                     data-color="{{ c.name }}"
                     aria-label="{{ c.name }}"
-                    title="{{ c.name }}"></button>
+                    title="{{ c.name }}">{{ c.name }}</button>
           {% endfor %}
         </div>
       </div>
@@ -72,7 +62,7 @@
       <div class="variant-group">
         <span class="variant-group__label">Size</span>
         <div class="mock-pills" id="sizePills">
-          {% for v in product.variants %}
+          {% for v in product.variants.all %}
             <button type="button"
                     class="pill{% if forloop.first %} active{% endif %}"
                     data-color="{{ v.color }}"

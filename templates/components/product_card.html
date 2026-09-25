@@ -1,20 +1,19 @@
 <!--
   Reusable storefront product card. Must be included from inside a
-  for-loop over products (uses forloop.counter0 for the stagger delay).
+  for-loop over products (uses forloop.counter0 for the stagger delay),
+  and needs `shop` in context (used to build the product_detail link).
 
   Expects a `product` context var shaped like the real Product model plus an
-  annotated starting price: product.id, product.name, product.category
-  (name), product.image (real ImageField or falsy), product.price (e.g. from
-  annotate price=Min of variants__unit_price), product.badge (optional
-  label) with product.badge_type ("low" / "best" / "new", controls the
-  badge color), product.swatch (1-4 fallback gradient index when there's no
-  image).
-
-  This partial does not need to change when the dummy product list is
-  swapped for a real queryset — only the view's for-loop source changes.
+  annotated starting price: product.id, product.name, product.category (a
+  real Category FK — read product.category.name, never product.category
+  directly, since Category.__str__ includes the shop name), product.image
+  (real ImageField or falsy), product.price (e.g. from annotate
+  price=Min of variants__unit_price). product.badge/badge_type/swatch have
+  no equivalent on the real Product model yet, so they harmlessly no-op
+  (badge never renders, swatch falls back to 1) until that's designed.
 -->
-<article class="product-card reveal" data-category="{{ product.category|lower|default:'all' }}" data-name="{{ product.name|lower }}" style="--delay:{% widthratio forloop.counter0 1 40 %}ms">
-  <a href="{% url 'product_detail' product.id %}" class="product-card__media" aria-label="View {{ product.name }}">
+<article class="product-card reveal" data-category="{{ product.category.name|lower|default:'all' }}" data-name="{{ product.name|lower }}" style="--delay:{% widthratio forloop.counter0 1 40 %}ms">
+  <a href="{% url 'product_detail' shop.slug product.id %}" class="product-card__media" aria-label="View {{ product.name }}">
     {% if product.image %}
       <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
     {% else %}
@@ -23,8 +22,8 @@
     {% if product.badge %}<span class="product-badge product-badge--{{ product.badge_type }}">{{ product.badge }}</span>{% endif %}
   </a>
   <div class="product-card__body">
-    <span class="product-card__category">{{ product.category|default:"Shop" }}</span>
-    <h3 class="product-card__name"><a href="{% url 'product_detail' product.id %}">{{ product.name }}</a></h3>
+    <span class="product-card__category">{{ product.category.name|default:"Shop" }}</span>
+    <h3 class="product-card__name"><a href="{% url 'product_detail' shop.slug product.id %}">{{ product.name }}</a></h3>
     <div class="product-card__row">
       <strong class="product-card__price">${{ product.price }}</strong>
       <button type="button" class="btn btn-secondary btn-sm product-card__add" aria-label="Add {{ product.name }} to cart">
