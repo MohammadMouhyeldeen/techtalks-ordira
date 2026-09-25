@@ -6,16 +6,6 @@
 
 {% block content %}
 
-<!--
-  DUMMY DATA NOTICE
-  `products` is currently a hardcoded list of dicts from
-  products/views.py::public_catalog (see DUMMY_PRODUCTS). Once
-  Category/Product/Variant querysets are wired up, swap the view's context
-  for a real queryset (e.g. Product.objects.filter(shop=shop, is_active=True)
-  .annotate(price=Min("variants__unit_price"))) — this template and
-  components/product_card.html do not need to change.
--->
-
 <section class="shop-intro">
   <div class="container">
     <div class="shop-intro__row reveal">
@@ -44,9 +34,9 @@
 
     <div class="filter-chips" id="catalogFilters" role="group" aria-label="Filter by category">
       <button type="button" class="filter-chip active" data-filter="all">All</button>
-      <button type="button" class="filter-chip" data-filter="clothing">Clothing</button>
-      <button type="button" class="filter-chip" data-filter="accessories">Accessories</button>
-      <button type="button" class="filter-chip" data-filter="footwear">Footwear</button>
+      {% for category in categories %}
+        <button type="button" class="filter-chip" data-filter="{{ category.name|lower }}">{{ category.name }}</button>
+      {% endfor %}
     </div>
   </div>
 
@@ -58,9 +48,9 @@
 
   </div>
 
-  <div class="catalog-empty" id="catalogEmpty">
+  <div class="catalog-empty{% if not products %} is-visible{% endif %}" id="catalogEmpty">
     <svg width="40" height="40"><use href="#i-search"/></svg>
-    <p>No products match your search.</p>
+    <p>{% if not products %}This shop hasn't added any products yet.{% else %}No products match your search.{% endif %}</p>
   </div>
 
 </section>

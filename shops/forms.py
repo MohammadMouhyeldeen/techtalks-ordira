@@ -5,9 +5,47 @@ from django import forms
 from .models import Shop
 
 
-class ShopSetupForm(forms.ModelForm):
+class ShopContactLogoCleanMixin:
+    """Shared whatsapp/logo validation for ShopSetupForm and ShopSettingsForm."""
 
     MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
+
+    def clean_whatsapp(self):
+        whatsapp = self.cleaned_data.get("whatsapp", "").strip()
+
+        if not whatsapp:
+            return whatsapp
+
+        if whatsapp.startswith("+"):
+            whatsapp = whatsapp[1:]
+
+        whatsapp = re.sub(r"[\s\-\(\)\[\]]", "", whatsapp)
+
+        if (not whatsapp.isdigit() or not whatsapp.isascii() or not 10 <= len(whatsapp) <= 15):
+            raise forms.ValidationError(
+                "Enter a WhatsApp number with 10 to 15 digits, "
+                "including the country code."
+            )
+
+        if whatsapp.startswith("0"):
+            raise forms.ValidationError(
+                "Enter the WhatsApp number with the country code."
+            )
+
+        return whatsapp
+
+    def clean_logo(self):
+        logo = self.cleaned_data.get("logo")
+
+        if logo and logo.size > self.MAX_LOGO_SIZE:
+            raise forms.ValidationError(
+                "Logo must be 2 MB or smaller."
+            )
+
+        return logo
+
+
+class ShopSetupForm(ShopContactLogoCleanMixin, forms.ModelForm):
 
     class Meta:
 
@@ -63,36 +101,35 @@ class ShopSetupForm(forms.ModelForm):
 
         return slug
 
-    def clean_whatsapp(self):
-        whatsapp = self.cleaned_data.get("whatsapp", "").strip()
 
-        if not whatsapp:
-            return whatsapp
+class ShopSettingsForm(ShopContactLogoCleanMixin, forms.ModelForm):
 
-        if whatsapp.startswith("+"):
-            whatsapp = whatsapp[1:]
+    class Meta:
 
-        whatsapp = re.sub(r"[\s\-\(\)\[\]]", "", whatsapp)
+        model = Shop
 
-        if (not whatsapp.isdigit() or not whatsapp.isascii() or not 10 <= len(whatsapp) <= 15):
-            raise forms.ValidationError(
-                "Enter a WhatsApp number with 10 to 15 digits, "
-                "including the country code."
-            )
+        fields = (
+            "name",
+            "whatsapp",
+            "instagram",
+            "logo",
+            "pickup_available",
+        )
 
-        if whatsapp.startswith("0"):
-            raise forms.ValidationError(
-                "Enter the WhatsApp number with the country code."
-            )
-
-        return whatsapp
-
-    def clean_logo(self):
-        logo = self.cleaned_data.get("logo")
-
-        if logo and logo.size > self.MAX_LOGO_SIZE:
-            raise forms.ValidationError(
-                "Logo must be 2 MB or smaller."
-            )
-
-        return logo
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "placeholder": "Enter your shop name",
+                }
+            ),
+            "whatsapp": forms.TextInput(
+                attrs={
+                    "placeholder": "e.g. +961 70 123 456",
+                }
+            ),
+            "instagram": forms.TextInput(
+                attrs={
+                    "placeholder": "@yourshop",
+                }
+            ),
+        }

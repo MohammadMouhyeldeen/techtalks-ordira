@@ -10,10 +10,10 @@
             Main
         </div>
 
-        <a href="#"
-           class="sidebar-link">
+        <a href="{% url 'shops:dashboard' %}"
+           class="sidebar-link{% if request.resolver_match.view_name == 'shops:dashboard' %} active{% endif %}">
 
-            <span class="sidebar-icon">📊</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-dashboard"/></svg></span>
 
             <span>Dashboard</span>
 
@@ -31,10 +31,10 @@
             Shop
         </div>
 
-        <a href="#"
-           class="sidebar-link">
+        <a href="{% url 'shops:settings' %}"
+           class="sidebar-link{% if request.resolver_match.view_name == 'shops:settings' %} active{% endif %}">
 
-            <span class="sidebar-icon">🏪</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-store"/></svg></span>
 
             <span>Shop Settings</span>
 
@@ -44,7 +44,7 @@
         <a href="#"
            class="sidebar-link">
 
-            <span class="sidebar-icon">👥</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-users"/></svg></span>
 
             <span>Customers</span>
 
@@ -54,7 +54,7 @@
         <a href="#"
            class="sidebar-link">
 
-            <span class="sidebar-icon">🚚</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-truck"/></svg></span>
 
             <span>Delivery Zones</span>
 
@@ -74,7 +74,7 @@
         <a href="#"
            class="sidebar-link">
 
-            <span class="sidebar-icon">🛍️</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-tag"/></svg></span>
 
             <span>Products</span>
 
@@ -84,7 +84,7 @@
         <a href="#"
            class="sidebar-link">
 
-            <span class="sidebar-icon">📦</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-box"/></svg></span>
 
             <span>Inventory</span>
 
@@ -102,20 +102,21 @@
             Sales
         </div>
 
-        <a href="#"
-           class="sidebar-link">
+        <span class="sidebar-link sidebar-link-disabled" aria-disabled="true" title="Orders — coming soon">
 
-            <span class="sidebar-icon">🛒</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-cart"/></svg></span>
 
             <span>Orders</span>
 
-        </a>
+            <span class="sidebar-badge">Soon</span>
+
+        </span>
 
 
         <a href="#"
            class="sidebar-link">
 
-            <span class="sidebar-icon">💳</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-wallet"/></svg></span>
 
             <span>Payment Methods</span>
 
@@ -135,7 +136,7 @@
         <a href="#"
            class="sidebar-link">
 
-            <span class="sidebar-icon">⚙️</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-settings"/></svg></span>
 
             <span>Settings</span>
 
@@ -145,7 +146,7 @@
        <form method="post" action="{% url 'accounts:logout' %}">
         {% csrf_token %}
         <button type="submit" class="sidebar-link sidebar-logout">
-            <span class="sidebar-icon">🚪</span>
+            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-logout"/></svg></span>
             <span>Logout</span>
         </button>
     </form>

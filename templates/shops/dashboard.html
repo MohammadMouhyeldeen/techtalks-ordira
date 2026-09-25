@@ -9,6 +9,57 @@
     <p class="page-subtitle">Your shop dashboard.</p>
 </div>
 
-<p>Real dashboard content coming in SCRUM-44.</p>
+<div class="stat-grid">
+    <div class="card stat-tile">
+        <svg class="stat-tile-bg-icon" viewBox="0 0 24 24"><use href="#i-tag"/></svg>
+        <div class="stat-tile-icon"><svg width="20" height="20"><use href="#i-tag"/></svg></div>
+        <div class="stat-tile-body">
+            <span class="stat-tile-value" data-count="{{ total_products }}">{{ total_products }}</span>
+            <span class="stat-tile-label">Total products</span>
+        </div>
+    </div>
+    <div class="card stat-tile stat-tile-accent">
+        <svg class="stat-tile-bg-icon" viewBox="0 0 24 24"><use href="#i-layers"/></svg>
+        <div class="stat-tile-icon"><svg width="20" height="20"><use href="#i-layers"/></svg></div>
+        <div class="stat-tile-body">
+            <span class="stat-tile-value" data-count="{{ total_variants }}">{{ total_variants }}</span>
+            <span class="stat-tile-label">Total variants</span>
+        </div>
+    </div>
+    <div class="card stat-tile{% if low_stock_count > 0 %} stat-tile-warning{% else %} stat-tile-success{% endif %}">
+        <svg class="stat-tile-bg-icon" viewBox="0 0 24 24"><use href="#{% if low_stock_count > 0 %}i-alert-triangle{% else %}i-check{% endif %}"/></svg>
+        <div class="stat-tile-icon"><svg width="20" height="20"><use href="#{% if low_stock_count > 0 %}i-alert-triangle{% else %}i-check{% endif %}"/></svg></div>
+        <div class="stat-tile-body">
+            <span class="stat-tile-value" data-count="{{ low_stock_count }}">{{ low_stock_count }}</span>
+            <span class="stat-tile-label">Low stock variants</span>
+        </div>
+    </div>
+</div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (() => {
+        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (prefersReducedMotion) return;
+
+        document.querySelectorAll(".stat-tile-value[data-count]").forEach((el) => {
+            const target = parseInt(el.getAttribute("data-count"), 10) || 0;
+            const duration = 900;
+            const start = performance.now();
+
+            const tick = (now) => {
+                const progress = Math.min((now - start) / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                el.textContent = String(Math.round(target * eased));
+                if (progress < 1) requestAnimationFrame(tick);
+                else el.textContent = String(target);
+            };
+
+            el.textContent = "0";
+            requestAnimationFrame(tick);
+        });
+    })();
+</script>
 {% endblock %}
