@@ -1,14 +1,22 @@
-from django.urls import reverse
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.test import TestCase
+from django.urls import reverse
 
 from accounts.models import User
 from shops.models import Shop
 
-from .forms import CategoryForm, ProductForm, ProductVariantForm
-from .models import Category, Product, ProductVariant
+from .forms import (
+    CategoryForm,
+    ProductForm,
+    ProductVariantForm,
+    StockAdjustmentForm,
+)
+from .models import Category, Product, ProductVariant, StockMovement
+from .services import adjust_variant_stock
 
 
 class ProductFormTests(TestCase):
@@ -153,6 +161,10 @@ class ProductFormTests(TestCase):
             "already exists",
             str(form.non_field_errors()),
         )
+    def test_variant_form_does_not_allow_direct_stock_editing(self):
+        form = ProductVariantForm(product=self.product)
+
+        self.assertNotIn("stock_quantity", form.fields)
 
 class CategoryViewTests(TestCase):
     def setUp(self):
@@ -275,6 +287,8 @@ class CategoryViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 405)
+
+
 
 class ProductViewTests(TestCase):
     def setUp(self):
@@ -482,6 +496,31 @@ class ProductViewTests(TestCase):
 
         self.assertEqual(response.status_code, 405)
 
+class ProductVariantModelTests(TestCase):
+    def test_stock_below_threshold_is_low_stock(self):
+        variant = ProductVariant(
+            stock_quantity=2,
+            low_stock_threshold=3,
+        )
+
+        self.assertTrue(variant.is_low_stock)
+
+    def test_stock_equal_to_threshold_is_low_stock(self):
+        variant = ProductVariant(
+            stock_quantity=3,
+            low_stock_threshold=3,
+        )
+
+        self.assertTrue(variant.is_low_stock)
+
+    def test_stock_above_threshold_is_not_low_stock(self):
+        variant = ProductVariant(
+            stock_quantity=4,
+            low_stock_threshold=3,
+        )
+
+        self.assertFalse(variant.is_low_stock)
+
 class ProductVariantViewTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(
@@ -573,12 +612,16 @@ class ProductVariantViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            ProductVariant.objects.filter(
-                product=self.product,
-                color="White",
-                size="L",
-            ).exists()
+
+        variant = ProductVariant.objects.get(
+            product=self.product,
+            color="White",
+            size="L",
+        )
+
+        self.assertEqual(variant.stock_quantity, 0)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=variant).exists()
         )
 
     def test_owner_cannot_create_variant_for_another_product(self):
@@ -637,7 +680,7 @@ class ProductVariantViewTests(TestCase):
 
         self.variant.refresh_from_db()
         self.assertEqual(self.variant.color, "Navy")
-        self.assertEqual(self.variant.stock_quantity, 12)
+        self.assertEqual(self.variant.stock_quantity, 10)
         self.assertEqual(self.variant.low_stock_threshold, 3)
 
     def test_owner_cannot_edit_another_shops_variant(self):
@@ -730,3 +773,600 @@ class ProductVariantViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 405)
+
+    def test_variant_with_stock_movement_is_archived_instead_of_deleted(self):
+        StockMovement.objects.create(
+            variant=self.variant,
+            created_by=self.owner,
+            change_qty=5,
+            reason=StockMovement.Reason.RESTOCK,
+        )
+
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "products:product-detail",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "product_pk": self.product.pk,
+                },
+            ),
+            fetch_redirect_response=False,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertFalse(self.variant.is_active)
+        self.assertTrue(
+            StockMovement.objects.filter(
+                variant=self.variant,
+            ).exists()
+        )
+
+    def test_archived_variant_cannot_be_viewed(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-detail",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_archived_variant_cannot_be_edited(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-edit",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_archived_variant_cannot_be_deleted_again(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-delete",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+
+        self.variant.refresh_from_db()
+        self.assertFalse(self.variant.is_active)
+
+    def test_owner_can_adjust_variant_stock(self):
+        url = reverse(
+            "products:variant-stock-adjust",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "change_qty": 5,
+                "reason": StockMovement.Reason.RESTOCK,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "products:product-detail",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "product_pk": self.product.pk,
+                },
+            ),
+            fetch_redirect_response=False,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 15)
+
+        movement = StockMovement.objects.get(
+            variant=self.variant,
+        )
+
+        self.assertEqual(movement.change_qty, 5)
+        self.assertEqual(
+            movement.reason,
+            StockMovement.Reason.RESTOCK,
+        )
+        self.assertEqual(movement.created_by, self.owner)
+
+    def test_stock_adjustment_cannot_make_quantity_negative(self):
+        url = reverse(
+            "products:variant-stock-adjust",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        with patch(
+            "products.views.render",
+            return_value=HttpResponse(),
+        ) as mocked_render:
+            response = self.client.post(
+                url,
+                {
+                    "change_qty": -11,
+                    "reason": StockMovement.Reason.ADJUSTMENT,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(
+                variant=self.variant,
+            ).exists()
+        )
+
+        form = mocked_render.call_args.args[2]["form"]
+
+        self.assertFormError(
+            form,
+            "change_qty",
+            "This adjustment would make the stock quantity negative.",
+        )
+
+    def test_owner_cannot_adjust_another_shops_variant(self):
+        url = reverse(
+            "products:variant-stock-adjust",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+                "variant_pk": self.other_variant.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "change_qty": 5,
+                "reason": StockMovement.Reason.RESTOCK,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.other_variant.refresh_from_db()
+
+        self.assertEqual(self.other_variant.stock_quantity, 5)
+        self.assertFalse(
+            StockMovement.objects.filter(
+                variant=self.other_variant,
+            ).exists()
+        )
+
+    def test_archived_variant_cannot_be_adjusted(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-stock-adjust",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "change_qty": 5,
+                "reason": StockMovement.Reason.RESTOCK,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(
+                variant=self.variant,
+            ).exists()
+        )
+
+    def test_variant_of_archived_product_cannot_be_adjusted(self):
+        self.product.is_active = False
+        self.product.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-stock-adjust",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "change_qty": 5,
+                "reason": StockMovement.Reason.RESTOCK,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(
+                variant=self.variant,
+            ).exists()
+        )
+    def test_owner_can_view_stock_history_newest_first(self):
+        first_movement = StockMovement.objects.create(
+            variant=self.variant,
+            created_by=self.owner,
+            change_qty=5,
+            reason=StockMovement.Reason.RESTOCK,
+        )
+        second_movement = StockMovement.objects.create(
+            variant=self.variant,
+            created_by=self.owner,
+            change_qty=-2,
+            reason=StockMovement.Reason.DAMAGE,
+        )
+
+        url = reverse(
+            "products:variant-stock-history",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        with patch(
+            "products.views.render",
+            return_value=HttpResponse(),
+        ) as mocked_render:
+            response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        context = mocked_render.call_args.args[2]
+
+        self.assertEqual(context["shop"], self.shop)
+        self.assertEqual(context["product"], self.product)
+        self.assertEqual(context["variant"], self.variant)
+        self.assertEqual(
+            list(context["movements"]),
+            [second_movement, first_movement],
+        )
+        self.assertEqual(second_movement.created_by, self.owner)
+
+    def test_owner_cannot_view_another_shops_stock_history(self):
+        StockMovement.objects.create(
+            variant=self.other_variant,
+            created_by=self.other_owner,
+            change_qty=3,
+            reason=StockMovement.Reason.RESTOCK,
+        )
+
+        url = reverse(
+            "products:variant-stock-history",
+            kwargs={
+                "shop_pk": self.other_shop.pk,
+                "product_pk": self.other_product.pk,
+                "variant_pk": self.other_variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_archived_variant_stock_history_returns_404(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        url = reverse(
+            "products:variant-stock-history",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+                "variant_pk": self.variant.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_product_detail_displays_low_stock_warning(self):
+        self.variant.stock_quantity = 3
+        self.variant.low_stock_threshold = 3
+        self.variant.save(
+            update_fields=[
+                "stock_quantity",
+                "low_stock_threshold",
+            ]
+        )
+
+        url = reverse(
+            "products:product-detail",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "product_pk": self.product.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Low stock")
+
+class StockAdjustmentServiceTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="inventory@example.com",
+            password="testpass123",
+            full_name="Inventory Owner",
+            status=User.Status.ACTIVE,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Inventory Shop",
+            slug="inventory-shop",
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+
+        self.category = Category.objects.create(
+            shop=self.shop,
+            name="Clothing",
+        )
+
+        self.product = Product.objects.create(
+            shop=self.shop,
+            category=self.category,
+            name="Classic T-shirt",
+        )
+
+        self.variant = ProductVariant.objects.create(
+            product=self.product,
+            color="Black",
+            size="M",
+            unit_price=Decimal("15.00"),
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=10,
+            low_stock_threshold=3,
+        )
+
+    def test_restock_increases_quantity_and_creates_movement(self):
+        movement = adjust_variant_stock(
+            variant=self.variant,
+            change_qty=5,
+            reason=StockMovement.Reason.RESTOCK,
+            created_by=self.owner,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 15)
+        self.assertEqual(movement.variant, self.variant)
+        self.assertEqual(movement.change_qty, 5)
+        self.assertEqual(movement.reason, StockMovement.Reason.RESTOCK)
+        self.assertEqual(movement.created_by, self.owner)
+
+    def test_negative_adjustment_decreases_stock(self):
+        movement = adjust_variant_stock(
+            variant=self.variant,
+            change_qty=-4,
+            reason=StockMovement.Reason.DAMAGE,
+            created_by=self.owner,
+        )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 6)
+        self.assertEqual(movement.change_qty, -4)
+
+    def test_adjustment_cannot_make_stock_negative(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "This adjustment would make the stock quantity negative.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=-11,
+                reason=StockMovement.Reason.ADJUSTMENT,
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+    def test_zero_adjustment_is_rejected(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Stock adjustment quantity cannot be zero.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=0,
+                reason=StockMovement.Reason.ADJUSTMENT,
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+    def test_archived_variant_cannot_be_adjusted(self):
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Archived product variants cannot be adjusted.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=5,
+                reason=StockMovement.Reason.RESTOCK,
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+    def test_invalid_reason_is_rejected(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Invalid stock movement reason.",
+        ):
+            adjust_variant_stock(
+                variant=self.variant,
+                change_qty=5,
+                reason="INVALID",
+                created_by=self.owner,
+            )
+
+        self.variant.refresh_from_db()
+
+        self.assertEqual(self.variant.stock_quantity, 10)
+        self.assertFalse(
+            StockMovement.objects.filter(variant=self.variant).exists()
+        )
+
+class StockAdjustmentFormTests(TestCase):
+    def setUp(self):
+        self.variant = ProductVariant(stock_quantity=10)
+
+    def test_positive_stock_adjustment_is_valid(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": 5,
+                "reason": StockMovement.Reason.RESTOCK,
+            },
+            variant=self.variant,
+        )
+
+        self.assertTrue(form.is_valid())
+
+    def test_negative_stock_adjustment_is_valid_when_stock_is_available(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": -4,
+                "reason": StockMovement.Reason.DAMAGE,
+            },
+            variant=self.variant,
+        )
+
+        self.assertTrue(form.is_valid())
+
+    def test_zero_stock_adjustment_is_invalid(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": 0,
+                "reason": StockMovement.Reason.ADJUSTMENT,
+            },
+            variant=self.variant,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertFormError(
+            form,
+            "change_qty",
+            "Stock adjustment quantity cannot be zero.",
+        )
+
+    def test_adjustment_cannot_make_stock_negative(self):
+        form = StockAdjustmentForm(
+            data={
+                "change_qty": -11,
+                "reason": StockMovement.Reason.ADJUSTMENT,
+            },
+            variant=self.variant,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertFormError(
+            form,
+            "change_qty",
+            "This adjustment would make the stock quantity negative.",
+        )
+
+    def test_form_only_allows_manual_movement_reasons(self):
+        form = StockAdjustmentForm(variant=self.variant)
+
+        reason_values = [
+            value
+            for value, label in form.fields["reason"].choices
+        ]
+
+        self.assertIn(StockMovement.Reason.RESTOCK, reason_values)
+        self.assertIn(StockMovement.Reason.ADJUSTMENT, reason_values)
+        self.assertIn(StockMovement.Reason.DAMAGE, reason_values)
+        self.assertNotIn(StockMovement.Reason.SALE, reason_values)
+        self.assertNotIn(
+            StockMovement.Reason.CANCELLATION,
+            reason_values,
+        )

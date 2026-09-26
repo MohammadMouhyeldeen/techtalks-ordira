@@ -1,12 +1,21 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.db.models.deletion import ProtectedError
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from shops.models import Shop
 
-from .forms import CategoryForm, ProductForm, ProductVariantForm
+from .forms import (
+    CategoryForm,
+    ProductForm,
+    ProductVariantForm,
+    StockAdjustmentForm,
+)
 from .models import Category, Product, ProductVariant
+from .services import adjust_variant_stock
 
 
 def get_owner_shop(request, shop_pk):
@@ -157,12 +166,18 @@ def owner_product_detail(request, shop_pk, product_pk):
         shop=shop,
     )
 
+    variants = ProductVariant.objects.filter(
+        product=product,
+        is_active=True,
+    )
+
     return render(
         request,
         "products/product_detail.html",
         {
             "shop": shop,
             "product": product,
+            "variants": variants,
         },
     )
 
@@ -275,6 +290,7 @@ def owner_variant_detail(request, shop_pk, product_pk, variant_pk):
         ProductVariant,
         pk=variant_pk,
         product=product,
+        is_active=True,
     )
 
     return render(
@@ -347,6 +363,7 @@ def owner_variant_edit(request, shop_pk, product_pk, variant_pk):
         ProductVariant,
         pk=variant_pk,
         product=product,
+        is_active=True,
     )
 
     form = ProductVariantForm(
@@ -398,17 +415,141 @@ def owner_variant_delete(request, shop_pk, product_pk, variant_pk):
         ProductVariant,
         pk=variant_pk,
         product=product,
+        is_active=True,
     )
 
-    variant.delete()
+    if variant.stock_movements.exists():
+        variant.is_active = False
+        variant.save(update_fields=["is_active"])
 
-    messages.success(
-        request,
-        "Product variant deleted successfully.",
-    )
+        messages.success(
+            request,
+            "Product variant archived successfully.",
+        )
+    else:
+        try:
+            variant.delete()
+
+            messages.success(
+                request,
+                "Product variant deleted successfully.",
+            )
+        except ProtectedError:
+            variant.is_active = False
+            variant.save(update_fields=["is_active"])
+
+            messages.success(
+                request,
+                "Product variant archived successfully.",
+            )
 
     return redirect(
         "products:product-detail",
         shop_pk=shop.pk,
         product_pk=product.pk,
+    )
+
+@login_required
+def owner_variant_stock_adjust(
+    request,
+    shop_pk,
+    product_pk,
+    variant_pk,
+):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+        is_active=True,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+        is_active=True,
+    )
+
+    form = StockAdjustmentForm(
+        request.POST or None,
+        variant=variant,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            adjust_variant_stock(
+                variant=variant,
+                change_qty=form.cleaned_data["change_qty"],
+                reason=form.cleaned_data["reason"],
+                created_by=request.user,
+            )
+        except ValidationError as error:
+            form.add_error(
+                "change_qty",
+                error.messages[0],
+            )
+        else:
+            messages.success(
+                request,
+                "Stock adjusted successfully.",
+            )
+
+            return redirect(
+                "products:product-detail",
+                shop_pk=shop.pk,
+                product_pk=product.pk,
+            )
+
+    return render(
+        request,
+        "products/stock_adjustment_form.html",
+        {
+            "shop": shop,
+            "product": product,
+            "variant": variant,
+            "form": form,
+            "page_title": "Adjust stock",
+        },
+    )
+
+@login_required
+def owner_variant_stock_history(
+    request,
+    shop_pk,
+    product_pk,
+    variant_pk,
+):
+    shop = get_owner_shop(request, shop_pk)
+
+    product = get_object_or_404(
+        Product,
+        pk=product_pk,
+        shop=shop,
+        is_active=True,
+    )
+
+    variant = get_object_or_404(
+        ProductVariant,
+        pk=variant_pk,
+        product=product,
+        is_active=True,
+    )
+
+    movements = (
+        variant.stock_movements
+        .select_related("created_by")
+        .order_by("-created_at")
+    )
+
+    return render(
+        request,
+        "products/stock_movement_history.html",
+        {
+            "shop": shop,
+            "product": product,
+            "variant": variant,
+            "movements": movements,
+        },
     )

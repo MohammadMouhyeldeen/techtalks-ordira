@@ -1,8 +1,7 @@
 from django import forms
 from django.db.models import Q
 
-from .models import Category, Product, ProductVariant
-
+from .models import Category, Product, ProductVariant, StockMovement
 
 class CategoryForm(forms.ModelForm):
     class Meta:
@@ -85,10 +84,9 @@ class ProductVariantForm(forms.ModelForm):
             "size",
             "unit_price",
             "currency",
-            "stock_quantity",
             "low_stock_threshold",
         ]
-
+        
     def __init__(self, *args, product=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.product = product
@@ -119,3 +117,50 @@ class ProductVariantForm(forms.ModelForm):
                 )
 
         return cleaned_data
+
+class StockAdjustmentForm(forms.Form):
+    change_qty = forms.IntegerField(
+        label="Quantity change",
+        help_text=(
+            "Use a positive number to add stock or a negative number "
+            "to remove stock."
+        ),
+    )
+    reason = forms.ChoiceField(
+        choices=[
+            (
+                StockMovement.Reason.RESTOCK,
+                StockMovement.Reason.RESTOCK.label,
+            ),
+            (
+                StockMovement.Reason.ADJUSTMENT,
+                StockMovement.Reason.ADJUSTMENT.label,
+            ),
+            (
+                StockMovement.Reason.DAMAGE,
+                StockMovement.Reason.DAMAGE.label,
+            ),
+        ],
+    )
+
+    def __init__(self, *args, variant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.variant = variant
+
+    def clean_change_qty(self):
+        change_qty = self.cleaned_data["change_qty"]
+
+        if change_qty == 0:
+            raise forms.ValidationError(
+                "Stock adjustment quantity cannot be zero."
+            )
+
+        if (
+            self.variant
+            and self.variant.stock_quantity + change_qty < 0
+        ):
+            raise forms.ValidationError(
+                "This adjustment would make the stock quantity negative."
+            )
+
+        return change_qty
