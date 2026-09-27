@@ -62,4 +62,10 @@ urlpatterns = [
         views.SetPasswordCompleteView.as_view(),
         name="set_password_complete",
     ),
+    # SCRUM-55: Change password (self-service for both ADMIN and SHOP_OWNER)
+    path(
+        "change-password/",
+        views.change_password,
+        name="change_password",
+    ),
 ]

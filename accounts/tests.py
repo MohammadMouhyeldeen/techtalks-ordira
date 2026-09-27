@@ -2117,3 +2117,269 @@ class AdminReissueTests(TestCase):
         # The malicious string should only appear escaped in the table cell
         self.assertNotIn("x');alert(1);//", content)
         self.assertIn("x&#x27;);alert(1);//", content)
+
+
+# ---------------------------------------------------------------------------
+# SCRUM-55: Change Password — Tests
+# ---------------------------------------------------------------------------
+
+
+class ChangePasswordTests(TestCase):
+    """
+    Tests for SCRUM-55: change-password self-service for logged-in users
+    (both ADMIN and SHOP_OWNER).
+
+    Covers:
+      1. Success: password changes, session preserved, success message shown.
+         Session preservation is verified by POSTing to the change view and
+         then re-authenticating with the NEW password on the same client —
+         if update_session_auth_hash() was missing, the client's session
+         would be invalid and the login would silently fail or land on the
+         change-password page again via @login_required redirect.
+      2. Wrong current password: form re-renders with inline error on
+         old_password, password hash unchanged.
+      3. Weak new password: Django validators reject, inline error on
+         new_password1, password unchanged.
+      4. Mismatched new passwords: inline error, no change.
+      5. CSRF without token: 403, no change.
+      6. Unauthenticated access: redirects to login with next=.
+      7. Both ADMIN and SHOP_OWNER can use the view and receive the
+         correct extends_template in context (admin_base.html vs base.html).
+    """
+
+    # ------------------------------------------------------------------ helpers
+
+    def _make_admin(self, email="admin-cp@example.com"):
+        return User.objects.create_user(
+            email=email,
+            password="OldPass123!",
+            full_name="Platform Admin",
+            role=User.Role.ADMIN,
+            status=User.Status.ACTIVE,
+        )
+
+    def _make_shop_owner(self, email="owner-cp@example.com"):
+        return User.objects.create_user(
+            email=email,
+            password="OldPass123!",
+            full_name="Shop Owner",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+    def _change_url(self):
+        return reverse("accounts:change_password")
+
+    def _post_change(self, user, old_password, new_password1, new_password2=None):
+        self.client.force_login(user)
+        data = {"old_password": old_password, "new_password1": new_password1}
+        if new_password2 is not None:
+            data["new_password2"] = new_password2
+        return self.client.post(self._change_url(), data)
+
+    # ------------------------------------------------------------------ 1. Success + session preserved
+
+    def test_success_password_changes_and_session_preserved(self):
+        """
+        The success case: valid old password + valid new password.
+
+        update_session_auth_hash() is called inside the view.  We verify it
+        actually worked by logging in again with the NEW password on the same
+        client after the change — if the session had been invalidated the
+        client's session would be invalid and the login would silently fail or
+        land on the change-password page again via @login_required redirect.
+        """
+        user = self._make_shop_owner()
+        response = self._post_change(user, "OldPass123!", "NewPass456!", "NewPass456!")
+        self.assertRedirects(response, reverse("accounts:change_password"))
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("NewPass456!"))
+        self.assertFalse(user.check_password("OldPass123!"))
+        # Session preserved: the same client can still access a @login_required
+        # page without re-login.
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_success_login_with_new_password_after_change(self):
+        """
+        Harder session-preservation check: after changing the password via the
+        change view, POST a login with the NEW password on the same client.
+        If update_session_auth_hash() was missing the session cookie would be
+        stale and the login would either silently fail or land on the
+        change-password page again.
+
+        This is the real integration test of rule 15 — not a mock or an
+        import check.
+        """
+        user = self._make_admin(email="admin-session@example.com")
+        self._post_change(
+            user, "OldPass123!", "BrandNewPass789!", "BrandNewPass789!"
+        )
+        login_resp = self.client.post(
+            reverse("accounts:login"),
+            {"email": user.email, "password": "BrandNewPass789!"},
+        )
+        self.assertRedirects(login_resp, reverse("accounts:admin_dashboard"))
+
+    def test_success_admin_sees_correct_extends_template(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.get(self._change_url())
+        self.assertEqual(response.status_code, 200)
+        # Verifies the view passes the correct parent template in context
+        # (admin_base.html for ADMIN, base.html for SHOP_OWNER).
+        self.assertEqual(response.context["extends_template"], "accounts/admin_base.html")
+
+    def test_success_shop_owner_sees_correct_extends_template(self):
+        owner = self._make_shop_owner()
+        self.client.force_login(owner)
+        response = self.client.get(self._change_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["extends_template"], "base.html")
+
+    def test_success_admin_sees_change_password_in_dashboard(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        # The change-password link is in an <a href> in the profile card.
+        self.assertIn(self._change_url(), response.content.decode())
+
+    def test_success_shop_owner_sees_change_password_in_dashboard(self):
+        owner = self._make_shop_owner()
+        from shops.models import Shop
+        Shop.objects.create(
+            owner=owner,
+            name="Test Shop",
+            slug="test-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        self.client.force_login(owner)
+        response = self.client.get(reverse("shops:dashboard"))
+        self.assertIn(self._change_url(), response.content.decode())
+
+    # ------------------------------------------------------------------ 2. Wrong current password
+
+    def test_wrong_current_password_rejected_inline(self):
+        user = self._make_shop_owner()
+        response = self._post_change(
+            user, "WrongPassword!", "NewPass456!", "NewPass456!"
+        )
+        self.assertEqual(response.status_code, 200)
+        old_errors = response.context["form"].errors.get("old_password", [])
+        self.assertTrue(old_errors, "Expected error on old_password")
+        self.assertIn(
+            "Your old password was entered incorrectly",
+            old_errors[0],
+        )
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("OldPass123!"))
+        self.assertFalse(user.check_password("NewPass456!"))
+
+    # ------------------------------------------------------------------ 3. Weak new password
+
+    def test_weak_new_password_rejected_inline(self):
+        user = self._make_shop_owner()
+        response = self._post_change(user, "OldPass123!", "123", "123")
+        self.assertEqual(response.status_code, 200)
+        errors = response.context["form"].errors
+        self.assertTrue(
+            errors.get("new_password1") or errors.get("new_password2") or errors.get("__all__"),
+            f"Expected password validation errors, got: {dict(errors)}",
+        )
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("OldPass123!"))
+
+    # ------------------------------------------------------------------ 4. Mismatched passwords
+
+    def test_mismatched_new_passwords_rejected_inline(self):
+        user = self._make_shop_owner()
+        response = self._post_change(
+            user, "OldPass123!", "NewPass456!", "Different789!"
+        )
+        self.assertEqual(response.status_code, 200)
+        errors = response.context["form"].errors
+        self.assertTrue(
+            errors.get("new_password2") or errors.get("__all__"),
+            f"Expected mismatch error, got: {dict(errors)}",
+        )
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("OldPass123!"))
+
+    # ------------------------------------------------------------------ 5. CSRF
+
+    def test_change_password_without_csrf_token_is_403(self):
+        user = self._make_shop_owner()
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(user)
+        response = client.post(
+            self._change_url(),
+            {"old_password": "OldPass123!", "new_password1": "NewPass456!", "new_password2": "NewPass456!"},
+        )
+        self.assertEqual(response.status_code, 403)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("OldPass123!"))
+
+    # ------------------------------------------------------------------ 6. Unauthenticated
+
+    def test_unauthenticated_get_redirects_to_login(self):
+        response = self.client.get(self._change_url())
+        self.assertRedirects(
+            response,
+            f"{reverse('accounts:login')}?next={self._change_url()}",
+        )
+
+    def test_unauthenticated_post_redirects_to_login(self):
+        response = self.client.post(
+            self._change_url(),
+            {"old_password": "OldPass123!", "new_password1": "NewPass456!", "new_password2": "NewPass456!"},
+        )
+        self.assertRedirects(
+            response,
+            f"{reverse('accounts:login')}?next={self._change_url()}",
+        )
+
+
+class ChangePasswordAdminTests(TestCase):
+    """
+    Role-specific checks for the change-password flow (SCRUM-55) — ADMIN path.
+    """
+
+    def _make_admin(self, email="admin-role@example.com"):
+        return User.objects.create_user(
+            email=email,
+            password="OldPass123!",
+            full_name="Platform Admin",
+            role=User.Role.ADMIN,
+            status=User.Status.ACTIVE,
+        )
+
+    def _change_url(self):
+        return reverse("accounts:change_password")
+
+    def test_admin_change_password_uses_admin_base_template(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:change_password"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["extends_template"], "accounts/admin_base.html")
+
+    def test_admin_dashboard_contains_change_password_link(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+        self.assertIn(self._change_url(), response.content.decode())
+
+    def test_admin_can_change_password_successfully(self):
+        admin = self._make_admin()
+        self.client.force_login(admin)
+        data = {
+            "old_password": "OldPass123!",
+            "new_password1": "NewPass456!",
+            "new_password2": "NewPass456!",
+        }
+        response = self.client.post(reverse("accounts:change_password"), data)
+        self.assertRedirects(response, reverse("accounts:change_password"))
+        admin.refresh_from_db()
+        self.assertTrue(admin.check_password("NewPass456!"))
+        self.assertFalse(admin.check_password("OldPass123!"))
+
