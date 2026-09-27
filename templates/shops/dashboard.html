@@ -9,6 +9,29 @@
     <p class="page-subtitle">Your shop dashboard.</p>
 </div>
 
+<div class="card settings-section settings-section--profile" style="margin-bottom:24px;">
+    <div class="settings-section__head">
+        <span class="settings-section__icon"><svg width="18" height="18"><use href="#i-settings"/></svg></span>
+        <div>
+            <h3 class="settings-section__title">Profile</h3>
+            <p class="settings-section__desc">Manage your account details.</p>
+        </div>
+    </div>
+    <div class="settings-section__body" style="display:flex;gap:24px;flex-wrap:wrap;">
+        <div class="form-group" style="flex:1;min-width:200px;">
+            <label for="id_full_name">Full name</label>
+            <input type="text" id="id_full_name" class="form-control" value="{{ request.user.full_name }}" readonly style="background:transparent;border:none;cursor:not-allowed;padding:8px 0;color:var(--text-secondary);">
+        </div>
+        <div class="form-group" style="flex:1;min-width:200px;">
+            <label for="id_email">Email</label>
+            <input type="email" id="id_email" class="form-control" value="{{ request.user.email }}" readonly style="background:transparent;border:none;cursor:not-allowed;padding:8px 0;color:var(--text-secondary);">
+        </div>
+        <div class="form-group" style="flex:1;min-width:200px;">
+            <a href="{% url 'accounts:change_password' %}" class="btn btn-secondary" style="text-decoration:none;">Change password</a>
+        </div>
+    </div>
+</div>
+
 <div class="stat-grid">
     <div class="card stat-tile">
         <svg class="stat-tile-bg-icon" viewBox="0 0 24 24"><use href="#i-tag"/></svg>
