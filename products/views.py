@@ -540,7 +540,7 @@ def owner_variant_stock_history(
     movements = (
         variant.stock_movements
         .select_related("created_by")
-        .order_by("-created_at")
+        .order_by("-created_at", "-id")
     )
 
     return render(
