@@ -7,12 +7,11 @@ from django.urls import reverse
 from PIL import Image
 
 from accounts.models import User
-from .models import Shop
+from .models import Shop, Subscription
 
 from datetime import date, timedelta
 
 from .helpers import is_catalog_public
-from .models import Subscription
 
 
 class ShopSetupTests(TestCase):
@@ -577,3 +576,204 @@ class CatalogPublicHelperTests(TestCase):
         )
 
         self.assertFalse(is_catalog_public(self.shop))
+
+
+class SubscriptionManagementTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "subscription-owner@example.com",
+            "testpassword123",
+            full_name="Subscription Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.admin = User.objects.create_user(
+            "subscription-admin@example.com",
+            "testpassword123",
+            full_name="Subscription Admin",
+            status=User.Status.ACTIVE,
+            role=User.Role.ADMIN,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Subscription Shop",
+            slug="subscription-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        self.subscription_list_url = reverse(
+            "shops:subscription-list"
+        )
+
+    def test_admin_can_open_subscription_list(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            self.subscription_list_url
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "shops/subscription_list.html",
+        )
+
+    def test_shop_owner_cannot_access_subscription_list(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.subscription_list_url
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_user_is_redirected_to_login(self):
+        response = self.client.get(
+            self.subscription_list_url
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("accounts:login"),
+            response.url,
+        )
+
+    def test_admin_can_create_subscription(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "shops:subscription-create",
+                args=[self.shop.pk],
+            ),
+            {
+                "plan": Subscription.Plan.BASIC,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today(),
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.subscription_list_url,
+        )
+
+        subscription = Subscription.objects.get(
+            shop=self.shop
+        )
+
+        self.assertEqual(
+            subscription.plan,
+            Subscription.Plan.BASIC,
+        )
+        self.assertEqual(
+            subscription.status,
+            Subscription.Status.ACTIVE,
+        )
+
+    def test_admin_can_edit_subscription(self):
+        subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.FREE,
+            status=Subscription.Status.EXPIRED,
+            starts_on=date.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "shops:subscription-edit",
+                args=[subscription.pk],
+            ),
+            {
+                "plan": Subscription.Plan.PREMIUM,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": date.today(),
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.subscription_list_url,
+        )
+
+        subscription.refresh_from_db()
+
+        self.assertEqual(
+            subscription.plan,
+            Subscription.Plan.PREMIUM,
+        )
+        self.assertEqual(
+            subscription.status,
+            Subscription.Status.ACTIVE,
+        )
+
+    def test_shop_without_active_subscription_shows_waiting_banner(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("shops:dashboard")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Waiting for activation",
+        )
+
+    def test_shop_with_active_subscription_hides_waiting_banner(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=date.today(),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("shops:dashboard")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            "Waiting for activation",
+        )
+
+    def test_subscription_form_rejects_end_date_before_start_date(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "shops:subscription-create",
+                args=[self.shop.pk],
+            ),
+            {
+                "plan": Subscription.Plan.BASIC,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": "2026-09-20",
+                "ends_on": "2026-09-19",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "End date cannot be before start date.",
+        )
+
+        self.assertFalse(
+            Subscription.objects.filter(
+                shop=self.shop
+            ).exists()
+        )
+
+    def today(self):
+        return date.today()

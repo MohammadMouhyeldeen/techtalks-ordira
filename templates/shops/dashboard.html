@@ -2,12 +2,32 @@
 
 {% block title %}Dashboard | Ordira{% endblock %}
 
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'shops/css/dashboard.css' %}">
+{% endblock %}
+
 {% block content %}
 
 <div class="page-header">
     <h1 class="page-title">Dashboard</h1>
     <p class="page-subtitle">Your shop dashboard.</p>
 </div>
+
+{% if is_shop_owner and not has_active_subscription %}
+
+<div class="subscription-banner">
+    <div>
+        <strong>Waiting for activation</strong>
+        <p>
+            Your shop is set up, but your subscription has not been activated yet.
+            You can continue managing your shop while you wait.
+        </p>
+    </div>
+</div>
+
+{% endif %}
 
 <div class="card settings-section settings-section--profile" style="margin-bottom:24px;">
     <div class="settings-section__head">
