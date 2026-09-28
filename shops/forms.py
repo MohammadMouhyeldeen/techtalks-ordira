@@ -2,7 +2,7 @@ import re
 
 from django import forms
 
-from .models import Shop
+from .models import Shop, Subscription
 
 
 class ShopContactLogoCleanMixin:
@@ -133,3 +133,35 @@ class ShopSettingsForm(ShopContactLogoCleanMixin, forms.ModelForm):
                 }
             ),
         }
+
+
+class SubscriptionForm(forms.ModelForm):
+    class Meta:
+        model = Subscription
+        fields = [
+            "plan",
+            "status",
+            "starts_on",
+            "ends_on",
+        ]
+        widgets = {
+            "starts_on": forms.DateInput(
+                attrs={"type": "date"}
+            ),
+            "ends_on": forms.DateInput(
+                attrs={"type": "date"}
+            ),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        starts_on = cleaned_data.get("starts_on")
+        ends_on = cleaned_data.get("ends_on")
+
+        if starts_on and ends_on and ends_on < starts_on:
+            raise forms.ValidationError(
+                "End date cannot be before start date."
+            )
+
+        return cleaned_data

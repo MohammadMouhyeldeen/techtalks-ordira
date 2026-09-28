@@ -1,0 +1,19 @@
+.subscription-banner {
+    margin-bottom: 28px;
+    padding: 18px 22px;
+    border: 1px solid #e6d9a8;
+    border-radius: 14px;
+    background: #fff9e6;
+}
+
+.subscription-banner strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 15px;
+}
+
+.subscription-banner p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+}

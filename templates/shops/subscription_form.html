@@ -1,0 +1,72 @@
+{% extends "accounts/admin_base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block nav_subscriptions_active %}active{% endblock %}
+{% block nav_subscriptions_aria %}page{% endblock %}
+
+{% block content %}
+
+<div class="admin-layout">
+
+    <div class="admin-page-header">
+        <div class="admin-eyebrow">Subscription management</div>
+
+        <h1 class="admin-page-title">
+            {{ page_title }}
+        </h1>
+
+        <p class="admin-page-subtitle">
+            Shop: <strong>{{ shop.name }}</strong>
+        </p>
+    </div>
+
+    <div class="admin-card">
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <ul class="form-errors">
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% for field in form %}
+
+                <div class="form-group">
+
+                    <label for="{{ field.id_for_label }}">
+                        {{ field.label }}
+                    </label>
+
+                    {{ field }}
+
+                    {% if field.errors %}
+                        <ul class="field-errors">
+                            {% for error in field.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+
+                </div>
+
+            {% endfor %}
+
+            <div>
+                <button type="submit" class="btn-auth">
+                    Save Subscription
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+{% endblock %}
