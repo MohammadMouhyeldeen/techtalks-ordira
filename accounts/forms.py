@@ -1,8 +1,20 @@
 from django import forms
 from django.contrib.auth import authenticate, password_validation
+from django.contrib.auth.forms import PasswordChangeForm
 from django.core.exceptions import ValidationError
 
 from .models import User
+
+
+class ChangePasswordForm(PasswordChangeForm):
+    """
+    Subclass of Django's PasswordChangeForm for the SCRUM-55 change-password
+    flow.  Compatible with the custom User model (email USERNAME_FIELD) because
+    PasswordChangeForm only calls user.check_password(), user.set_password(),
+    and Django's password validators — all of which work with AbstractBaseUser.
+    """
+
+    pass
 
 
 

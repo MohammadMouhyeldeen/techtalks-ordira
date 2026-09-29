@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Stock History | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="inventory-page">
+    <div class="inventory-header">
+        <div>
+            <a
+                class="back-link"
+                href="{% url 'products:product-detail' shop_pk=shop.pk product_pk=product.pk %}"
+            >
+                ← Back to product
+            </a>
+
+            <h1 class="inventory-title">Stock movement history</h1>
+
+            <p class="inventory-subtitle">
+                {{ product.name }} &mdash;
+                {{ variant.color }} / {{ variant.size }}
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <a
+                class="btn btn-primary"
+                href="{% url 'products:variant-stock-adjust' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+            >
+                Adjust stock
+            </a>
+        </div>
+    </div>
+
+    <div class="stock-overview-card">
+        <div>
+            <span class="section-label">Current stock</span>
+
+            <strong class="current-stock-number">
+                {{ variant.stock_quantity }}
+            </strong>
+        </div>
+
+        {% if variant.is_low_stock %}
+            <span class="status-badge status-low">Low stock</span>
+        {% else %}
+            <span class="status-badge status-in-stock">In stock</span>
+        {% endif %}
+    </div>
+
+    <section class="inventory-card">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Movement records</h2>
+
+                <p class="section-description">
+                    Every manual stock change is recorded for auditing.
+                </p>
+            </div>
+
+            <span class="variant-count">
+                {{ movements|length }}
+                record{{ movements|length|pluralize }}
+            </span>
+        </div>
+
+        {% if movements %}
+            <div class="table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Quantity change</th>
+                            <th>Reason</th>
+                            <th>Recorded by</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for movement in movements %}
+                            <tr>
+                                <td>
+                                    {{ movement.created_at|date:"M d, Y H:i" }}
+                                </td>
+
+                                <td>
+                                    {% if movement.change_qty > 0 %}
+                                        <span class="quantity-change quantity-positive">
+                                            +{{ movement.change_qty }}
+                                        </span>
+                                    {% else %}
+                                        <span class="quantity-change quantity-negative">
+                                            {{ movement.change_qty }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <span class="reason-badge">
+                                        {{ movement.get_reason_display }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    {% if movement.created_by %}
+                                        {{ movement.created_by.full_name|default:movement.created_by.email }}
+                                    {% else %}
+                                        <span class="system-user">System</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">↕</div>
+
+                <h3>No stock movements yet</h3>
+
+                <p>
+                    Adjust this variant’s stock to create its first
+                    inventory record.
+                </p>
+
+                <a
+                    class="btn btn-primary"
+                    href="{% url 'products:variant-stock-adjust' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+                >
+                    Adjust stock
+                </a>
+            </div>
+        {% endif %}
+    </section>
+</div>
+
+{% endblock %}

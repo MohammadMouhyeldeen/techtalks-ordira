@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Variant Details | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="inventory-page">
+    <div class="inventory-header">
+        <div>
+            <a
+                class="back-link"
+                href="{% url 'products:product-detail' shop_pk=shop.pk product_pk=product.pk %}"
+            >
+                ← Back to product
+            </a>
+
+            <h1 class="inventory-title">
+                {{ variant.color }} / {{ variant.size }}
+            </h1>
+
+            <p class="inventory-subtitle">
+                Variant of {{ product.name }}
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <a
+                class="btn btn-secondary"
+                href="{% url 'products:variant-edit' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+            >
+                Edit variant
+            </a>
+
+            <a
+                class="btn btn-primary"
+                href="{% url 'products:variant-stock-adjust' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+            >
+                Adjust stock
+            </a>
+        </div>
+    </div>
+
+    <section class="inventory-card">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Variant information</h2>
+
+                <p class="section-description">
+                    Pricing and inventory details for this product variant.
+                </p>
+            </div>
+
+            {% if variant.is_low_stock %}
+                <span class="status-badge status-low">Low stock</span>
+            {% else %}
+                <span class="status-badge status-in-stock">In stock</span>
+            {% endif %}
+        </div>
+
+        <div class="variant-detail-grid">
+            <div class="variant-detail-item">
+                <span class="detail-label">Product</span>
+                <strong class="detail-value">
+                    {{ product.name }}
+                </strong>
+            </div>
+
+            <div class="variant-detail-item">
+                <span class="detail-label">Color</span>
+                <strong class="detail-value">
+                    {{ variant.color }}
+                </strong>
+            </div>
+
+            <div class="variant-detail-item">
+                <span class="detail-label">Size</span>
+                <strong class="detail-value">
+                    {{ variant.size }}
+                </strong>
+            </div>
+
+            <div class="variant-detail-item">
+                <span class="detail-label">Unit price</span>
+                <strong class="detail-value detail-value-primary">
+                    {{ variant.unit_price }} {{ variant.currency }}
+                </strong>
+            </div>
+
+            <div class="variant-detail-item">
+                <span class="detail-label">Current stock</span>
+                <strong class="detail-value detail-value-primary">
+                    {{ variant.stock_quantity }}
+                </strong>
+            </div>
+
+            <div class="variant-detail-item">
+                <span class="detail-label">Low-stock threshold</span>
+                <strong class="detail-value">
+                    {{ variant.low_stock_threshold }}
+                </strong>
+            </div>
+        </div>
+
+        <div class="variant-footer-actions">
+            <a
+                class="btn btn-secondary"
+                href="{% url 'products:variant-stock-history' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+            >
+                View stock history
+            </a>
+
+            <form
+                method="post"
+                action="{% url 'products:variant-delete' shop_pk=shop.pk product_pk=product.pk variant_pk=variant.pk %}"
+                class="danger-form"
+                onsubmit="return confirm('Are you sure you want to remove this variant?');"
+            >
+                {% csrf_token %}
+
+                <button type="submit" class="btn btn-danger">
+                    Remove variant
+                </button>
+            </form>
+        </div>
+    </section>
+</div>
+
+{% endblock %}

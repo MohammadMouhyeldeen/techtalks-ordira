@@ -36,6 +36,33 @@
         </div>
     </header>
 
+    {# ---- Profile section (SCRUM-55) ---- #}
+    <div class="admin-card" style="margin-bottom:28px;">
+        <div style="padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+            <div>
+                <h2 style="font-size:1rem;font-weight:700;color:var(--ink-900);margin-bottom:2px;">Your Profile</h2>
+                <p style="font-size:0.85rem;color:var(--ink-500);">Manage your account details.</p>
+            </div>
+            <a href="{% url 'accounts:change_password' %}" class="btn-auth-outline" style="text-decoration:none;padding:8px 18px;font-size:0.85rem;">
+                Change Password
+            </a>
+        </div>
+        <div style="display:flex;gap:32px;padding:18px 24px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--paper);">
+            <div>
+                <span style="font-size:0.75rem;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:0.05em;">Full name</span>
+                <div style="margin-top:4px;font-size:0.95rem;color:var(--ink-900);font-weight:600;">{{ request.user.full_name }}</div>
+            </div>
+            <div>
+                <span style="font-size:0.75rem;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:0.05em;">Email</span>
+                <div style="margin-top:4px;font-size:0.95rem;color:var(--ink-900);">{{ request.user.email }}</div>
+            </div>
+            <div>
+                <span style="font-size:0.75rem;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:0.05em;">Role</span>
+                <div style="margin-top:4px;font-size:0.95rem;color:var(--ink-900);">{{ request.user.get_role_display }}</div>
+            </div>
+        </div>
+    </div>
+
     <div class="admin-card">
 
         {% if page_obj.object_list %}

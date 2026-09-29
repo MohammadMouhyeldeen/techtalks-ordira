@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.views import PasswordResetCompleteView, PasswordResetConfirmView
@@ -13,7 +13,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
-from .forms import AdminCreateUserForm, LoginForm, RegistrationForm
+from .forms import AdminCreateUserForm, ChangePasswordForm, LoginForm, RegistrationForm
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -407,3 +407,42 @@ class SetPasswordCompleteView(PasswordResetCompleteView):
     """
 
     template_name = "accounts/set_password_complete.html"
+
+
+# ---------------------------------------------------------------------------
+# SCRUM-55: Change Password
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def change_password(request):
+    """
+    Lets a logged-in user (ADMIN or SHOP_OWNER) change their own password.
+
+    POST-only changes the password; GET renders the form.
+    Uses Django's PasswordChangeForm (subclassed as ChangePasswordForm) which
+    validates the current password against the DB and runs password validators
+    on the new password.  update_session_auth_hash() is called on success so
+    the user is NOT logged out.
+    """
+    if request.method == "POST":
+        form = ChangePasswordForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            form.save()
+            update_session_auth_hash(request, request.user)
+            messages.success(request, "Your password has been updated.")
+            return redirect("accounts:change_password")
+    else:
+        form = ChangePasswordForm(user=request.user)
+
+    extends_template = (
+        "accounts/admin_base.html"
+        if request.user.role == User.Role.ADMIN
+        else "base.html"
+    )
+
+    return render(
+        request,
+        "accounts/change_password.html",
+        {"form": form, "extends_template": extends_template},
+    )

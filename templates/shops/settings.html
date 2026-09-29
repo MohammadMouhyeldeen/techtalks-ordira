@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Shop Settings | Ordira{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h1 class="page-title">Shop Settings</h1>
+    <p class="page-subtitle">Update the details customers see for {{ shop.name }}.</p>
+</div>
+
+{% if form.non_field_errors %}
+    <div class="form-errors">
+        {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+    </div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="settings-form">
+    {% csrf_token %}
+
+    <div class="card settings-section">
+        <div class="settings-section__head">
+            <span class="settings-section__icon"><svg width="18" height="18"><use href="#i-store"/></svg></span>
+            <div>
+                <h3 class="settings-section__title">Shop identity</h3>
+                <p class="settings-section__desc">Your shop's name and logo.</p>
+            </div>
+        </div>
+
+        <div class="settings-section__body">
+            <div class="logo-upload">
+                <div class="logo-preview" id="logoPreview">
+                    {% if shop.logo %}
+                        <img src="{{ shop.logo.url }}" alt="" id="logoPreviewImg">
+                    {% else %}
+                        <span id="logoPreviewInitial">{{ shop.name|first|upper }}</span>
+                    {% endif %}
+                </div>
+                <div class="logo-upload__controls">
+                    <label for="{{ form.logo.id_for_label }}" class="btn btn-secondary logo-upload__btn">Choose image</label>
+                    {{ form.logo }}
+                    <small class="field-help">PNG or JPG, up to 2MB.</small>
+                    {% if form.logo.errors %}
+                        <ul class="field-errors">{% for e in form.logo.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.name.id_for_label }}">Shop name</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                    <ul class="field-errors">{% for e in form.name.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card settings-section settings-section--contact">
+        <div class="settings-section__head">
+            <span class="settings-section__icon"><svg width="18" height="18"><use href="#i-chat"/></svg></span>
+            <div>
+                <h3 class="settings-section__title">Contact</h3>
+                <p class="settings-section__desc">How customers reach you.</p>
+            </div>
+        </div>
+
+        <div class="settings-section__body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="{{ form.whatsapp.id_for_label }}" class="form-label--icon">
+                        <svg width="16" height="16" class="icon-whatsapp"><use href="#i-wa"/></svg>
+                        WhatsApp
+                    </label>
+                    {{ form.whatsapp }}
+                    <small class="field-help">Example: +961 70 123 456</small>
+                    {% if form.whatsapp.errors %}
+                        <ul class="field-errors">{% for e in form.whatsapp.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.instagram.id_for_label }}" class="form-label--icon">
+                        <svg width="16" height="16"><use href="#i-ig"/></svg>
+                        Instagram
+                    </label>
+                    {{ form.instagram }}
+                    <small class="field-help">Example: @yourshop</small>
+                    {% if form.instagram.errors %}
+                        <ul class="field-errors">{% for e in form.instagram.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card settings-section settings-section--preferences">
+        <div class="settings-section__head">
+            <span class="settings-section__icon"><svg width="18" height="18"><use href="#i-settings"/></svg></span>
+            <div>
+                <h3 class="settings-section__title">Preferences</h3>
+                <p class="settings-section__desc">How customers can receive their order.</p>
+            </div>
+        </div>
+
+        <div class="settings-section__body">
+            <div class="pickup-box">
+                <div class="pickup-content">
+                    <span class="pickup-title">Enable customer pickup</span>
+                    <span class="pickup-description">Allow customers to collect orders directly from your shop.</span>
+                </div>
+                <label class="toggle">
+                    {{ form.pickup_available }}
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            {% if form.pickup_available.errors %}
+                <ul class="field-errors">{% for e in form.pickup_available.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card form-footer">
+        <p class="footer-text">Changes apply immediately to your storefront.</p>
+        <button type="submit" class="btn btn-primary">Save changes</button>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (() => {
+        const input = document.getElementById("{{ form.logo.id_for_label }}");
+        const preview = document.getElementById("logoPreview");
+
+        input?.addEventListener("change", () => {
+            const file = input.files && input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                preview.innerHTML = `<img src="${event.target.result}" alt="">`;
+            };
+            reader.readAsDataURL(file);
+        });
+    })();
+</script>
+{% endblock %}

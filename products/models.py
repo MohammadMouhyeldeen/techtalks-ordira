@@ -1,9 +1,9 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
-
 
 class Category(models.Model):
     shop = models.ForeignKey(
@@ -12,7 +12,7 @@ class Category(models.Model):
         related_name="categories",
     )
     name = models.CharField(max_length=100)
-
+    is_active = models.BooleanField(default=True)
     class Meta:
         ordering = ["name"]
         constraints = [
@@ -49,6 +49,22 @@ class Product(models.Model):
     class Meta:
         ordering = ["name"]
 
+    def clean(self):
+        super().clean()
+
+        if (
+            self.shop_id
+            and self.category_id
+            and self.category.shop_id != self.shop_id
+        ):
+            raise ValidationError(
+                {
+                    "category": (
+                        "The selected category must belong to the same shop."
+                    )
+                }
+            )
+
     def __str__(self):
         return self.name
 
@@ -77,7 +93,7 @@ class ProductVariant(models.Model):
     )
     stock_quantity = models.PositiveIntegerField(default=0)
     low_stock_threshold = models.PositiveIntegerField(default=0)
-
+    is_active = models.BooleanField(default=True)
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -86,6 +102,9 @@ class ProductVariant(models.Model):
             ),
         ]
 
+    @property
+    def is_low_stock(self):
+        return self.stock_quantity <= self.low_stock_threshold
     def __str__(self):
         return f"{self.product.name} - {self.color} - {self.size}"
 

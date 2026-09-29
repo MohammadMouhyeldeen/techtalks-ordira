@@ -1,0 +1,136 @@
+{% extends "accounts/admin_base.html" %}
+
+{% block title %}Subscriptions{% endblock %}
+
+{% block nav_subscriptions_active %}active{% endblock %}
+{% block nav_subscriptions_aria %}page{% endblock %}
+
+{% block content %}
+
+<div class="admin-layout">
+
+    <div class="admin-page-header">
+        <div class="admin-eyebrow">Platform management</div>
+
+        <h1 class="admin-page-title">
+            Subscriptions
+        </h1>
+
+        <p class="admin-page-subtitle">
+            Manage subscription access for all shops.
+        </p>
+    </div>
+
+    <div class="admin-card">
+
+        <div class="admin-table-wrap">
+
+            <table class="admin-table">
+
+                <thead>
+                    <tr>
+                        <th>Shop</th>
+                        <th>Owner</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Starts</th>
+                        <th>Ends</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for row in shop_rows %}
+
+                    <tr>
+
+                        <td>
+                            <strong class="admin-table-name">
+                                {{ row.shop.name }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ row.shop.owner.full_name }}
+                        </td>
+
+                        {% if row.active_subscription %}
+
+                            <td>
+                                {{ row.active_subscription.get_plan_display }}
+                            </td>
+
+                            <td>
+                                <span class="status-badge status-badge-active">
+                                    {{ row.active_subscription.get_status_display }}
+                                </span>
+                            </td>
+
+                            <td class="admin-table-date">
+                                {{ row.active_subscription.starts_on }}
+                            </td>
+
+                            <td class="admin-table-date">
+                                {{ row.active_subscription.ends_on|default:"—" }}
+                            </td>
+
+                            <td>
+                                <a
+                                    href="{% url 'shops:subscription-edit' row.active_subscription.pk %}"
+                                >
+                                    Edit
+                                </a>
+                            </td>
+
+                        {% else %}
+
+                            <td>
+                                —
+                            </td>
+
+                            <td>
+                                <strong>No active subscription</strong>
+                            </td>
+
+                            <td class="admin-table-date">
+                                —
+                            </td>
+
+                            <td class="admin-table-date">
+                                —
+                            </td>
+
+                            <td>
+                                <a
+                                    href="{% url 'shops:subscription-create' row.shop.pk %}"
+                                >
+                                    Create
+                                </a>
+                            </td>
+
+                        {% endif %}
+
+                    </tr>
+
+                    {% empty %}
+
+                    <tr>
+                        <td colspan="7">
+                            No shops found.
+                        </td>
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
