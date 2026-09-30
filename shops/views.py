@@ -6,7 +6,7 @@ from django.http import HttpResponseForbidden
 
 from accounts.models import User
 from .forms import ShopSetupForm, ShopSettingsForm, SubscriptionForm
-from .helpers import get_dashboard_stats, is_catalog_public
+from .helpers import get_dashboard_stats, is_catalog_public, subscription_status
 from .models import Shop, Subscription
 
 
@@ -199,6 +199,12 @@ def dashboard(request):
         else False
     )
 
+    subscription_status_value = (
+        subscription_status(shop)
+        if shop is not None
+        else "NONE"
+    )
+
     is_shop_owner = request.user.role == User.Role.SHOP_OWNER
 
     return render(
@@ -207,6 +213,7 @@ def dashboard(request):
         {
             **stats,
             "has_active_subscription": has_active_subscription,
+            "subscription_status": subscription_status_value,
             "is_shop_owner": is_shop_owner,
         },
     )
