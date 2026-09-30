@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Categories | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="inventory-page">
+    <div class="inventory-header">
+        <div>
+            <a
+                class="back-link"
+                href="{% url 'products:product-list' shop_pk=shop.pk %}"
+            >
+                &larr; Back to products
+            </a>
+
+            <h1 class="inventory-title">Categories</h1>
+
+            <p class="inventory-subtitle">
+                Organize the products for {{ shop.name }}.
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <a
+                class="btn btn-primary"
+                href="{% url 'products:category-create' shop_pk=shop.pk %}"
+            >
+                Add category
+            </a>
+        </div>
+    </div>
+
+    <div class="inventory-card">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Active categories</h2>
+
+                <p class="section-description">
+                    Edit or archive the categories used by your products.
+                </p>
+            </div>
+
+            <span class="variant-count">
+                {{ categories|length }}
+                categor{{ categories|length|pluralize:"y,ies" }}
+            </span>
+        </div>
+
+        {% if categories %}
+            <div class="table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Products</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for category in categories %}
+                            <tr>
+                                <td>
+                                    <strong>{{ category.name }}</strong>
+                                </td>
+
+                                <td>
+                                    {{ category.products.count }}
+                                </td>
+
+                                <td>
+                                    <div class="table-actions">
+                                        <a
+                                            href="{% url 'products:category-edit' shop_pk=shop.pk category_pk=category.pk %}"
+                                        >
+                                            Edit
+                                        </a>
+
+                                        <form
+                                            class="danger-form"
+                                            method="post"
+                                            action="{% url 'products:category-archive' shop_pk=shop.pk category_pk=category.pk %}"
+                                            onsubmit="return confirm('Archive this category?');"
+                                        >
+                                            {% csrf_token %}
+
+                                            <button
+                                                class="btn btn-danger"
+                                                type="submit"
+                                            >
+                                                Archive
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">+</div>
+
+                <h3>No active categories yet</h3>
+
+                <p>
+                    Create a category before adding products to your shop.
+                </p>
+
+                <a
+                    class="btn btn-primary"
+                    href="{% url 'products:category-create' shop_pk=shop.pk %}"
+                >
+                    Add your first category
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
