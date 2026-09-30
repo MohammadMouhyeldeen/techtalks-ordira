@@ -18,6 +18,17 @@
 {% if is_shop_owner and not has_active_subscription %}
 
 <div class="subscription-banner">
+    {% if subscription_status == "EXPIRED" %}
+    <div>
+        <strong>Subscription expired</strong>
+        <p>Your subscription has expired. Contact us to renew and keep your shop's catalog live.</p>
+    </div>
+    {% elif subscription_status == "CANCELLED" %}
+    <div>
+        <strong>Subscription cancelled</strong>
+        <p>Your subscription was cancelled. Contact us if you'd like to reactivate your shop.</p>
+    </div>
+    {% else %}
     <div>
         <strong>Waiting for activation</strong>
         <p>
@@ -25,6 +36,7 @@
             You can continue managing your shop while you wait.
         </p>
     </div>
+    {% endif %}
 </div>
 
 {% endif %}

@@ -11,7 +11,7 @@ from .models import Shop, Subscription
 
 from datetime import date, timedelta
 
-from .helpers import is_catalog_public
+from .helpers import is_catalog_public, get_latest_subscription, subscription_status
 
 
 class ShopSetupTests(TestCase):
@@ -777,3 +777,173 @@ class SubscriptionManagementTests(TestCase):
 
     def today(self):
         return date.today()
+
+
+class SubscriptionStatusHelperTests(TestCase):
+    """Tests for get_latest_subscription() and subscription_status()."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "status-owner@example.com",
+            "testpassword123",
+            full_name="Status Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Status Shop",
+            slug="status-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        self.today = date.today()
+
+    def test_no_subscription_returns_none(self):
+        self.assertIsNone(get_latest_subscription(self.shop))
+        self.assertEqual(subscription_status(self.shop), "NONE")
+
+    def test_active_subscription_returns_active(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today,
+        )
+        self.assertEqual(subscription_status(self.shop), "ACTIVE")
+
+    def test_expired_subscription_returns_expired(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today - timedelta(days=30),
+            ends_on=self.today - timedelta(days=1),
+        )
+        self.assertEqual(subscription_status(self.shop), "EXPIRED")
+
+    def test_cancelled_subscription_returns_cancelled(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.CANCELLED,
+            starts_on=self.today - timedelta(days=30),
+        )
+        self.assertEqual(subscription_status(self.shop), "CANCELLED")
+
+    def test_expired_then_active_picks_active(self):
+        """Old EXPIRED row followed by newer ACTIVE row — most recent wins."""
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today - timedelta(days=60),
+            ends_on=self.today - timedelta(days=30),
+        )
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today,
+        )
+        self.assertEqual(subscription_status(self.shop), "ACTIVE")
+
+    def test_active_then_expired_picks_expired(self):
+        """Old ACTIVE row followed by newer EXPIRED row — most recent wins."""
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today - timedelta(days=60),
+        )
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today,
+            ends_on=self.today + timedelta(days=30),
+        )
+        self.assertEqual(subscription_status(self.shop), "EXPIRED")
+
+
+class SubscriptionBannerTemplateTests(TestCase):
+    """Template-level tests: banner text renders correctly per subscription state."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "banner-owner@example.com",
+            "testpassword123",
+            full_name="Banner Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Banner Shop",
+            slug="banner-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        self.today = date.today()
+        self.dashboard_url = reverse("shops:dashboard")
+
+    def _assert_banner(self, response, expected_text, unexpected_texts=None):
+        content = response.content.decode()
+        self.assertIn("subscription-banner", content)
+        self.assertIn(expected_text, content)
+        if unexpected_texts:
+            for text in unexpected_texts:
+                self.assertNotIn(text, content)
+
+    def test_no_subscription_shows_waiting_banner(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 200)
+        self._assert_banner(
+            response,
+            "Waiting for activation",
+            unexpected_texts=["Subscription expired", "Subscription cancelled"],
+        )
+
+    def test_expired_subscription_shows_expired_banner(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today - timedelta(days=30),
+            ends_on=self.today - timedelta(days=1),
+        )
+        self.client.force_login(self.owner)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 200)
+        self._assert_banner(
+            response,
+            "Subscription expired",
+            unexpected_texts=["Waiting for activation", "Subscription cancelled"],
+        )
+
+    def test_cancelled_subscription_shows_cancelled_banner(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.CANCELLED,
+            starts_on=self.today - timedelta(days=30),
+        )
+        self.client.force_login(self.owner)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 200)
+        self._assert_banner(
+            response,
+            "Subscription cancelled",
+            unexpected_texts=["Waiting for activation", "Subscription expired"],
+        )
+
+    def test_active_subscription_shows_no_banner(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today,
+        )
+        self.client.force_login(self.owner)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("subscription-banner", response.content.decode())
