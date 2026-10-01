@@ -524,6 +524,61 @@ class ShopSetupReviewTests(TestCase):
         )
 
 
+class SidebarCatalogSectionTests(TestCase):
+    """Explicit tests for the {% if shop %} guard on the Catalog sidebar
+    section. Prevents the NoReverseMatch regression where shopless users
+    hit a 500 on any base.html-rendering page."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "sidebar-owner@example.com",
+            "testpassword123",
+            full_name="Sidebar Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.admin = User.objects.create_user(
+            "sidebar-admin@example.com",
+            "testpassword123",
+            full_name="Sidebar Admin",
+            status=User.Status.ACTIVE,
+            role=User.Role.ADMIN,
+        )
+        self.dashboard_url = reverse("shops:dashboard")
+
+    def _create_shop_for(self, owner):
+        return Shop.objects.create(
+            owner=owner,
+            name="Sidebar Shop",
+            slug="sidebar-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+    def test_catalog_section_shows_for_owner_with_shop(self):
+        self._create_shop_for(self.owner)
+        self.client.force_login(self.owner)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Catalog")
+        self.assertContains(response, "Products")
+
+    def test_catalog_section_hidden_for_admin_without_shop(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Catalog")
+        self.assertNotContains(response, "Products")
+
+    def test_catalog_section_hidden_for_owner_without_shop(self):
+        # Shopless owners are redirected from dashboard to setup,
+        # so use change-password (renders base.html without a shop).
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse("accounts:change_password"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Catalog")
+        self.assertNotContains(response, "Products")
+
+
 class CatalogPublicHelperTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
