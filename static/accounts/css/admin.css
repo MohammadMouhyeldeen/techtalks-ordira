@@ -339,6 +339,16 @@ body {
   color: var(--success);
 }
 
+.status-badge-expired {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.status-badge-cancelled {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
 .status-badge-suspended {
   background: var(--danger-bg);
   color: var(--danger);
