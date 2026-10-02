@@ -153,6 +153,10 @@ class SubscriptionForm(forms.ModelForm):
             ),
         }
 
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
     def clean(self):
         cleaned_data = super().clean()
 
@@ -163,5 +167,22 @@ class SubscriptionForm(forms.ModelForm):
             raise forms.ValidationError(
                 "End date cannot be before start date."
             )
+
+        status = cleaned_data.get("status")
+        if status == Subscription.Status.ACTIVE:
+            shop = self.shop
+            if shop is None and self.instance is not None and self.instance.pk:
+                shop = self.instance.shop_id
+            if shop is not None:
+                qs = Subscription.objects.filter(
+                    shop=shop,
+                    status=Subscription.Status.ACTIVE,
+                )
+                if self.instance is not None and self.instance.pk:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    raise forms.ValidationError(
+                        "This shop already has an active subscription."
+                    )
 
         return cleaned_data

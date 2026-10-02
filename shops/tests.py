@@ -1,7 +1,9 @@
 
 from io import BytesIO
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 from PIL import Image
@@ -832,6 +834,350 @@ class SubscriptionManagementTests(TestCase):
 
     def today(self):
         return date.today()
+
+
+class SubscriptionIntegrityTests(TestCase):
+    """SCRUM-61/63: one-ACTIVE-per-shop constraint, form guard, race safety,
+    and subscription list showing non-ACTIVE subscriptions."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "integrity-owner@example.com",
+            "testpassword123",
+            full_name="Integrity Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.admin = User.objects.create_user(
+            "integrity-admin@example.com",
+            "testpassword123",
+            full_name="Integrity Admin",
+            status=User.Status.ACTIVE,
+            role=User.Role.ADMIN,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Integrity Shop",
+            slug="integrity-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        self.today = date.today()
+        self.list_url = reverse("shops:subscription-list")
+        self.create_url = reverse(
+            "shops:subscription-create", args=[self.shop.pk]
+        )
+
+    def _create_active(self, **overrides):
+        defaults = {
+            "shop": self.shop,
+            "plan": Subscription.Plan.BASIC,
+            "status": Subscription.Status.ACTIVE,
+            "starts_on": self.today,
+        }
+        defaults.update(overrides)
+        return Subscription.objects.create(**defaults)
+
+    def _create_expired(self, **overrides):
+        defaults = {
+            "shop": self.shop,
+            "plan": Subscription.Plan.BASIC,
+            "status": Subscription.Status.EXPIRED,
+            "starts_on": self.today - timedelta(days=30),
+            "ends_on": self.today - timedelta(days=1),
+        }
+        defaults.update(overrides)
+        return Subscription.objects.create(**defaults)
+
+    # ------------------------------------------------------------------
+    # Form guard: create blocked / allowed
+    # ------------------------------------------------------------------
+
+    def test_create_blocked_when_active_exists(self):
+        self._create_active()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            self.create_url,
+            {
+                "plan": Subscription.Plan.BASIC,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today,
+                "ends_on": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "This shop already has an active subscription.",
+        )
+        self.assertEqual(
+            Subscription.objects.filter(shop=self.shop).count(), 1
+        )
+
+    def test_create_allowed_when_only_expired_exists(self):
+        self._create_expired()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            self.create_url,
+            {
+                "plan": Subscription.Plan.BASIC,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today,
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(response, self.list_url)
+        self.assertEqual(
+            Subscription.objects.filter(
+                shop=self.shop, status=Subscription.Status.ACTIVE
+            ).count(),
+            1,
+        )
+
+    def test_create_allowed_when_only_cancelled_exists(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.FREE,
+            status=Subscription.Status.CANCELLED,
+            starts_on=self.today - timedelta(days=30),
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            self.create_url,
+            {
+                "plan": Subscription.Plan.BASIC,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today,
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(response, self.list_url)
+        self.assertEqual(
+            Subscription.objects.filter(
+                shop=self.shop, status=Subscription.Status.ACTIVE
+            ).count(),
+            1,
+        )
+
+    def test_create_non_active_allowed_when_active_exists(self):
+        """SCRUM-61: non-ACTIVE rows can be created even when ACTIVE exists."""
+        self._create_active()
+        self.client.force_login(self.admin)
+
+        for status in (Subscription.Status.EXPIRED, Subscription.Status.CANCELLED):
+            response = self.client.post(
+                self.create_url,
+                {
+                    "plan": Subscription.Plan.FREE,
+                    "status": status,
+                    "starts_on": self.today - timedelta(days=60),
+                    "ends_on": "",
+                },
+            )
+            self.assertRedirects(response, self.list_url)
+            self.assertTrue(
+                Subscription.objects.filter(
+                    shop=self.shop, status=status
+                ).exists()
+            )
+
+    # ------------------------------------------------------------------
+    # Form guard: edit blocked / allowed
+    # ------------------------------------------------------------------
+
+    def test_edit_expired_to_active_blocked_when_another_active_exists(self):
+        self._create_active()
+        expired = self._create_expired()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("shops:subscription-edit", args=[expired.pk]),
+            {
+                "plan": Subscription.Plan.BASIC,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today,
+                "ends_on": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "This shop already has an active subscription.",
+        )
+        expired.refresh_from_db()
+        self.assertEqual(expired.status, Subscription.Status.EXPIRED)
+
+    def test_edit_expired_to_active_allowed_when_none_exists(self):
+        expired = self._create_expired()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("shops:subscription-edit", args=[expired.pk]),
+            {
+                "plan": Subscription.Plan.PREMIUM,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today,
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(response, self.list_url)
+        expired.refresh_from_db()
+        self.assertEqual(expired.status, Subscription.Status.ACTIVE)
+        self.assertEqual(expired.plan, Subscription.Plan.PREMIUM)
+
+    def test_edit_active_row_itself_still_works(self):
+        active = self._create_active(plan=Subscription.Plan.FREE)
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("shops:subscription-edit", args=[active.pk]),
+            {
+                "plan": Subscription.Plan.PREMIUM,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today,
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(response, self.list_url)
+        active.refresh_from_db()
+        self.assertEqual(active.plan, Subscription.Plan.PREMIUM)
+        self.assertEqual(active.status, Subscription.Status.ACTIVE)
+
+    # ------------------------------------------------------------------
+    # DB constraint (bypasses form)
+    # ------------------------------------------------------------------
+
+    def test_db_constraint_rejects_second_active_row(self):
+        self._create_active()
+        with self.assertRaises(IntegrityError):
+            Subscription.objects.create(
+                shop=self.shop,
+                plan=Subscription.Plan.PREMIUM,
+                status=Subscription.Status.ACTIVE,
+                starts_on=self.today,
+            )
+
+    # ------------------------------------------------------------------
+    # Race safety: view catches IntegrityError from save
+    # ------------------------------------------------------------------
+
+    def test_view_handles_integrity_error_on_create(self):
+        self.client.force_login(self.admin)
+
+        with patch("shops.views.Subscription.save") as mock_save:
+            mock_save.side_effect = IntegrityError("duplicate active")
+            response = self.client.post(
+                self.create_url,
+                {
+                    "plan": Subscription.Plan.BASIC,
+                    "status": Subscription.Status.ACTIVE,
+                    "starts_on": self.today,
+                    "ends_on": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "This shop already has an active subscription.",
+        )
+        self.assertEqual(
+            Subscription.objects.filter(shop=self.shop).count(), 0
+        )
+
+    def test_view_handles_integrity_error_on_edit(self):
+        active = self._create_active()
+        self.client.force_login(self.admin)
+
+        with patch("shops.views.Subscription.save") as mock_save:
+            mock_save.side_effect = IntegrityError("duplicate active")
+            response = self.client.post(
+                reverse("shops:subscription-edit", args=[active.pk]),
+                {
+                    "plan": Subscription.Plan.PREMIUM,
+                    "status": Subscription.Status.ACTIVE,
+                    "starts_on": self.today,
+                    "ends_on": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "This shop already has an active subscription.",
+        )
+        active.refresh_from_db()
+        self.assertEqual(active.plan, Subscription.Plan.BASIC)
+
+    # ------------------------------------------------------------------
+    # SCRUM-63: subscription list
+    # ------------------------------------------------------------------
+
+    def test_list_shows_expired_row_with_edit_link_and_badge(self):
+        expired = self._create_expired()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Expired")
+        self.assertContains(response, "status-badge-expired")
+        self.assertContains(
+            response,
+            reverse("shops:subscription-edit", args=[expired.pk]),
+        )
+
+    def test_list_shows_create_when_no_active_exists(self):
+        self._create_expired()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("shops:subscription-create", args=[self.shop.pk]),
+        )
+
+    def test_list_shows_no_create_when_active_exists(self):
+        self._create_active()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            reverse("shops:subscription-create", args=[self.shop.pk]),
+        )
+
+    # ------------------------------------------------------------------
+    # Access control
+    # ------------------------------------------------------------------
+
+    def test_non_admin_denied_on_create(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.create_url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_admin_denied_on_edit(self):
+        active = self._create_active()
+        self.client.force_login(self.owner)
+        response = self.client.get(
+            reverse("shops:subscription-edit", args=[active.pk])
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 class SubscriptionStatusHelperTests(TestCase):
