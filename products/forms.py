@@ -2,6 +2,7 @@ from django import forms
 from django.db.models import Q
 
 from .models import Category, Product, ProductVariant, StockMovement
+from shops.models import DeliveryZone, ShopPaymentMethod
 
 class CategoryForm(forms.ModelForm):
     class Meta:
@@ -117,6 +118,87 @@ class ProductVariantForm(forms.ModelForm):
                 )
 
         return cleaned_data
+
+class CheckoutForm(forms.Form):
+    """Guest checkout shell — fully real/validated, but its valid-POST
+    branch only builds a preview payload (see storefront_views.checkout).
+    No price/stock validation here; that belongs to the real checkout
+    service (orders.services.create_order) once SCRUM-65 merges."""
+
+    customer_name = forms.CharField(
+        max_length=150,
+        label="Full name",
+        widget=forms.TextInput(attrs={"class": "form-input"}),
+    )
+    customer_phone = forms.CharField(
+        max_length=30,
+        label="Phone number",
+        widget=forms.TextInput(attrs={"class": "form-input", "placeholder": "e.g. 70 123 456"}),
+    )
+    fulfillment_type = forms.ChoiceField(
+        choices=[("DELIVERY", "Delivery"), ("PICKUP", "Pickup")],
+        widget=forms.RadioSelect(attrs={"class": "fulfillment-choice"}),
+    )
+    delivery_zone = forms.ModelChoiceField(
+        queryset=DeliveryZone.objects.none(),
+        required=False,
+        label="Delivery area",
+        widget=forms.Select(attrs={"class": "form-input"}),
+    )
+    address = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-input"}),
+        label="Delivery address",
+    )
+    selected_payment_method = forms.ModelChoiceField(
+        queryset=ShopPaymentMethod.objects.none(),
+        label="Payment method",
+        widget=forms.Select(attrs={"class": "form-input"}),
+    )
+    # ProductVariant.Currency, not Order.Currency — this form has zero
+    # import coupling to the orders app.
+    currency = forms.ChoiceField(
+        choices=ProductVariant.Currency.choices,
+        widget=forms.Select(attrs={"class": "form-input"}),
+    )
+
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
+        if shop is None:
+            return
+
+        self.fields["delivery_zone"].queryset = shop.delivery_zones.filter(
+            is_active=True
+        )
+        self.fields["selected_payment_method"].queryset = (
+            shop.payment_methods.filter(enabled=True)
+        )
+        self.fields["selected_payment_method"].label_from_instance = (
+            lambda obj: obj.get_method_name_display()
+        )
+        self.fields["selected_payment_method"].empty_label = None
+        self.fields["delivery_zone"].label_from_instance = (
+            lambda obj: f"{obj.area_name} (+{obj.fee})"
+        )
+        self.fields["delivery_zone"].empty_label = None
+
+        if not shop.pickup_available:
+            self.fields["fulfillment_type"].choices = [("DELIVERY", "Delivery")]
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        fulfillment_type = cleaned_data.get("fulfillment_type")
+        if fulfillment_type == "DELIVERY":
+            if not cleaned_data.get("delivery_zone"):
+                self.add_error("delivery_zone", "Select a delivery area.")
+            if not cleaned_data.get("address"):
+                self.add_error("address", "Enter a delivery address.")
+
+        return cleaned_data
+
 
 class StockAdjustmentForm(forms.Form):
     change_qty = forms.IntegerField(

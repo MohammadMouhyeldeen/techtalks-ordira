@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -5,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 
 from customers.models import Customer
 from products.models import (
@@ -13,7 +15,7 @@ from products.models import (
     ProductVariant,
     StockMovement,
 )
-from shops.models import DeliveryZone, Shop, ShopPaymentMethod
+from shops.models import DeliveryZone, Shop, ShopPaymentMethod, Subscription
 
 from .models import Order, OrderItem
 from .services import create_order
@@ -506,3 +508,93 @@ class CheckoutServiceTests(TestCase):
             ),
             "Expected the ProductVariant query to use FOR UPDATE.",
         )
+
+
+class OrderSuccessPreviewTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "order-success-owner@example.com", "testpassword123",
+            full_name="Order Success Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner, name="Sara's Closet", slug="saras-closet-order-success",
+            exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
+        )
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        self.category = Category.objects.create(shop=self.shop, name="Clothing")
+        self.product = Product.objects.create(
+            shop=self.shop, category=self.category, name="Denim Jacket",
+        )
+        self.variant = ProductVariant.objects.create(
+            product=self.product, color="Indigo", size="M",
+            unit_price="45.00", stock_quantity=10,
+        )
+        self.payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
+        )
+        self.order_success_url = reverse("order_success", args=[self.shop.slug])
+
+    def test_direct_visit_shows_generic_fallback(self):
+        response = self.client.get(self.order_success_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Jane Customer")
+
+    def test_real_checkout_flow_shows_actual_submitted_data(self):
+        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
+            "variant_id": self.variant.pk, "quantity": 1,
+        })
+        self.client.post(reverse("checkout", args=[self.shop.slug]), {
+            "customer_name": "John Shopper",
+            "customer_phone": "70999888",
+            "fulfillment_type": "PICKUP",
+            "selected_payment_method": self.payment_method.pk,
+            "currency": "USD",
+        })
+
+        response = self.client.get(self.order_success_url)
+
+        self.assertContains(response, "John Shopper")
+        self.assertContains(response, "Denim Jacket")
+        self.assertNotContains(response, "Jane Customer")
+
+    def test_preview_banner_present_on_both_paths(self):
+        direct_response = self.client.get(self.order_success_url)
+
+        self.assertContains(direct_response, "preview")
+
+        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
+            "variant_id": self.variant.pk, "quantity": 1,
+        })
+        self.client.post(reverse("checkout", args=[self.shop.slug]), {
+            "customer_name": "John Shopper",
+            "customer_phone": "70999888",
+            "fulfillment_type": "PICKUP",
+            "selected_payment_method": self.payment_method.pk,
+            "currency": "USD",
+        })
+        real_response = self.client.get(self.order_success_url)
+
+        self.assertContains(real_response, "preview")
+
+    def test_direct_visit_does_not_consume_a_real_preview_twice(self):
+        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
+            "variant_id": self.variant.pk, "quantity": 1,
+        })
+        self.client.post(reverse("checkout", args=[self.shop.slug]), {
+            "customer_name": "John Shopper",
+            "customer_phone": "70999888",
+            "fulfillment_type": "PICKUP",
+            "selected_payment_method": self.payment_method.pk,
+            "currency": "USD",
+        })
+
+        first = self.client.get(self.order_success_url)
+        second = self.client.get(self.order_success_url)
+
+        self.assertContains(first, "John Shopper")
+        self.assertContains(second, "Jane Customer")

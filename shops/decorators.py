@@ -39,6 +39,7 @@ def public_shop_required(view_func):
                 status=200,
             )
 
+        request.public_shop = shop
         return view_func(request, *args, shop=shop, **kwargs)
 
     return _wrapped
