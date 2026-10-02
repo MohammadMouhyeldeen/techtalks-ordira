@@ -344,6 +344,18 @@ body {
   color: var(--danger);
 }
 
+.status-badge-expired {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.status-badge-cancelled {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* ---- Action Buttons (table row) ---- */
+
 /* ---- Action Buttons (table row) ---- */
 
 .admin-table-actions {

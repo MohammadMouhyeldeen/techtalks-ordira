@@ -70,20 +70,24 @@ def subscription_list(request):
 
     shops = Shop.objects.select_related("owner").order_by("name")
 
-    active_subscriptions = (
+    subscriptions = (
         Subscription.objects
-        .filter(status=Subscription.Status.ACTIVE)
         .order_by("-starts_on", "-id")
         .select_related("shop")
     )
 
-    active_by_shop = {}
+    subscription_by_shop = {}
 
-    for subscription in active_subscriptions:
-        active_by_shop.setdefault(
-            subscription.shop_id,
-            subscription,
-        )
+    for subscription in subscriptions:
+        current = subscription_by_shop.get(subscription.shop_id)
+
+        if current is None:
+            subscription_by_shop[subscription.shop_id] = subscription
+        elif (
+            subscription.status == Subscription.Status.ACTIVE
+            and current.status != Subscription.Status.ACTIVE
+        ):
+            subscription_by_shop[subscription.shop_id] = subscription
 
     shop_rows = []
 
@@ -91,7 +95,7 @@ def subscription_list(request):
         shop_rows.append(
             {
                 "shop": shop,
-                "active_subscription": active_by_shop.get(shop.id),
+                "subscription": subscription_by_shop.get(shop.id),
             }
         )
 
@@ -114,7 +118,7 @@ def subscription_create(request, shop_pk):
     shop = get_object_or_404(Shop, pk=shop_pk)
 
     if request.method == "POST":
-        form = SubscriptionForm(request.POST)
+        form = SubscriptionForm(request.POST, shop=shop)
 
         if form.is_valid():
             subscription = form.save(commit=False)
@@ -123,7 +127,7 @@ def subscription_create(request, shop_pk):
 
             return redirect("shops:subscription-list")
     else:
-        form = SubscriptionForm()
+        form = SubscriptionForm(shop=shop)
 
     return render(
         request,
@@ -152,6 +156,7 @@ def subscription_edit(request, subscription_pk):
         form = SubscriptionForm(
             request.POST,
             instance=subscription,
+            shop=subscription.shop,
         )
 
         if form.is_valid():
@@ -159,7 +164,7 @@ def subscription_edit(request, subscription_pk):
 
             return redirect("shops:subscription-list")
     else:
-        form = SubscriptionForm(instance=subscription)
+        form = SubscriptionForm(instance=subscription, shop=subscription.shop)
 
     return render(
         request,
@@ -192,11 +197,27 @@ def dashboard(request):
             "low_stock_count": 0,
         }
     )
+    subscription_status=None
+    if shop is not None:
+        active_subscription =(
+            shop.subscriptions
+            .filter(status=Subscription.Status.ACTIVE)
+            .order_by("-starts_on", "-id")
+            .first()
+        )
+        if active_subscription is not None:
+            subscription_status = Subscription.Status.ACTIVE
+        else:
+            latest_subscription = (
+                shop.subscriptions
+                .order_by("-starts_on", "-id")
+                .first()
+            )
+            if latest_subscription is not None:
+                subscription_status = latest_subscription.status
 
     has_active_subscription = (
-        is_catalog_public(shop)
-        if shop is not None
-        else False
+        subscription_status == Subscription.Status.ACTIVE
     )
 
     is_shop_owner = request.user.role == User.Role.SHOP_OWNER
@@ -207,6 +228,7 @@ def dashboard(request):
         {
             **stats,
             "has_active_subscription": has_active_subscription,
+            "subscription_status": subscription_status,
             "is_shop_owner": is_shop_owner,
         },
     )

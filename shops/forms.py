@@ -134,8 +134,11 @@ class ShopSettingsForm(ShopContactLogoCleanMixin, forms.ModelForm):
             ),
         }
 
-
 class SubscriptionForm(forms.ModelForm):
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
     class Meta:
         model = Subscription
         fields = [
@@ -158,10 +161,30 @@ class SubscriptionForm(forms.ModelForm):
 
         starts_on = cleaned_data.get("starts_on")
         ends_on = cleaned_data.get("ends_on")
+        status = cleaned_data.get("status")
 
         if starts_on and ends_on and ends_on < starts_on:
             raise forms.ValidationError(
                 "End date cannot be before start date."
             )
+
+        if (
+            self.shop
+            and status == Subscription.Status.ACTIVE
+        ):
+            active_subscriptions = Subscription.objects.filter(
+                shop=self.shop,
+                status=Subscription.Status.ACTIVE,
+            )
+
+            if self.instance.pk:
+                active_subscriptions = active_subscriptions.exclude(
+                    pk=self.instance.pk
+                )
+
+            if active_subscriptions.exists():
+                raise forms.ValidationError(
+                    "This shop already has an active subscription."
+                )
 
         return cleaned_data

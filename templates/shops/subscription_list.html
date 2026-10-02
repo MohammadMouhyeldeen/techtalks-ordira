@@ -55,29 +55,29 @@
                             {{ row.shop.owner.full_name }}
                         </td>
 
-                        {% if row.active_subscription %}
+                        {% if row.subscription %}
 
                             <td>
-                                {{ row.active_subscription.get_plan_display }}
+                                {{ row.subscription.get_plan_display }}
                             </td>
 
                             <td>
-                                <span class="status-badge status-badge-active">
-                                    {{ row.active_subscription.get_status_display }}
+                                <span class="status-badge status-badge-{{ row.subscription.status|lower }}">
+                                    {{ row.subscription.get_status_display }}
                                 </span>
                             </td>
 
                             <td class="admin-table-date">
-                                {{ row.active_subscription.starts_on }}
+                                {{ row.subscription.starts_on }}
                             </td>
 
                             <td class="admin-table-date">
-                                {{ row.active_subscription.ends_on|default:"—" }}
+                                {{ row.subscription.ends_on|default:"—" }}
                             </td>
 
                             <td>
                                 <a
-                                    href="{% url 'shops:subscription-edit' row.active_subscription.pk %}"
+                                    href="{% url 'shops:subscription-edit' row.subscription.pk %}"
                                 >
                                     Edit
                                 </a>
@@ -90,7 +90,7 @@
                             </td>
 
                             <td>
-                                <strong>No active subscription</strong>
+                                <strong>No subscription</strong>
                             </td>
 
                             <td class="admin-table-date">

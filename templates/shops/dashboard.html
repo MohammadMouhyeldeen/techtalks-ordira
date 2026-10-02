@@ -17,15 +17,41 @@
 
 {% if is_shop_owner and not has_active_subscription %}
 
-<div class="subscription-banner">
-    <div>
-        <strong>Waiting for activation</strong>
-        <p>
-            Your shop is set up, but your subscription has not been activated yet.
-            You can continue managing your shop while you wait.
-        </p>
-    </div>
-</div>
+    {% if subscription_status is None %}
+
+        <div class="subscription-banner">
+            <div>
+                <strong>Waiting for activation</strong>
+                <p>
+                    Your shop is set up, but your subscription has not been activated yet.
+                    You can continue managing your shop while you wait.
+                </p>
+            </div>
+        </div>
+
+    {% elif subscription_status == "EXPIRED" %}
+
+        <div class="subscription-banner">
+            <div>
+                <strong>Your subscription has expired</strong>
+                <p>
+                    Your public catalog is hidden until an admin renews your subscription.
+                </p>
+            </div>
+        </div>
+
+    {% elif subscription_status == "CANCELLED" %}
+
+        <div class="subscription-banner">
+            <div>
+                <strong>Your subscription has been cancelled</strong>
+                <p>
+                    Your public catalog is hidden until an admin renews your subscription.
+                </p>
+            </div>
+        </div>
+
+    {% endif %}
 
 {% endif %}
 

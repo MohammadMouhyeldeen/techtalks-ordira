@@ -629,6 +629,37 @@ class SubscriptionManagementTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_shop_owner_cannot_access_subscription_edit(self):
+        subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse(
+                "shops:subscription-edit",
+                args=[subscription.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_shop_owner_cannot_access_subscription_create(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse(
+                "shops:subscription-create",
+                args=[self.shop.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+
     def test_unauthenticated_user_is_redirected_to_login(self):
         response = self.client.get(
             self.subscription_list_url
@@ -674,6 +705,123 @@ class SubscriptionManagementTests(TestCase):
             Subscription.Status.ACTIVE,
         )
 
+    def test_admin_cannot_create_duplicate_active_subscription(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "shops:subscription-create",
+                args=[self.shop.pk],
+            ),
+            {
+                "plan": Subscription.Plan.PREMIUM,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today(),
+                "ends_on": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Subscription.objects.filter(
+                shop=self.shop,
+                status=Subscription.Status.ACTIVE,
+            ).count(),
+            1,
+        )
+
+    def test_admin_cannot_edit_subscription_to_active_if_shop_already_has_active(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today(),
+        )
+
+        subscription_to_edit = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.FREE,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "shops:subscription-edit",
+                args=[subscription_to_edit.pk],
+            ),
+            {
+                "plan": Subscription.Plan.PREMIUM,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today(),
+                "ends_on": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        subscription_to_edit.refresh_from_db()
+
+        self.assertEqual(
+            subscription_to_edit.status,
+            Subscription.Status.EXPIRED,
+        )
+
+        self.assertEqual(
+            Subscription.objects.filter(
+                shop=self.shop,
+                status=Subscription.Status.ACTIVE,
+            ).count(),
+            1,
+        )
+    def test_admin_can_edit_current_active_subscription(self):
+        subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "shops:subscription-edit",
+                args=[subscription.pk],
+            ),
+            {
+                "plan": Subscription.Plan.PREMIUM,
+                "status": Subscription.Status.ACTIVE,
+                "starts_on": self.today(),
+                "ends_on": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.subscription_list_url,
+        )
+
+        subscription.refresh_from_db()
+
+        self.assertEqual(
+            subscription.plan,
+            Subscription.Plan.PREMIUM,
+        )
+        self.assertEqual(
+            subscription.status,
+            Subscription.Status.ACTIVE,
+        )
+
     def test_admin_can_edit_subscription(self):
         subscription = Subscription.objects.create(
             shop=self.shop,
@@ -713,6 +861,143 @@ class SubscriptionManagementTests(TestCase):
             Subscription.Status.ACTIVE,
         )
 
+    def test_expired_subscription_appears_in_admin_list_with_edit_link(self):
+        subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            self.subscription_list_url,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            self.shop.name,
+        )
+
+        self.assertContains(
+            response,
+            subscription.get_plan_display(),
+        )
+
+        self.assertContains(
+            response,
+        subscription.get_status_display(),
+        )
+
+        self.assertContains(
+        response,
+        reverse(
+            "shops:subscription-edit",
+            args=[subscription.pk],
+        ),
+        )
+
+    def test_latest_subscription_is_shown_when_no_active_subscription_exists(self):
+        older_subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.FREE,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today() - timedelta(days=30),
+        )
+
+        latest_subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.CANCELLED,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            self.subscription_list_url,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            latest_subscription.get_plan_display(),
+        )
+        self.assertContains(
+            response,
+            latest_subscription.get_status_display(),
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "shops:subscription-edit",
+                args=[latest_subscription.pk],
+            ),
+        )
+
+        self.assertNotContains(
+            response,
+            reverse(
+                "shops:subscription-edit",
+                args=[older_subscription.pk],
+            ),
+        )
+
+    def test_active_subscription_is_preferred_in_admin_list(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=self.today() - timedelta(days=30),
+        )
+
+        newer_expired_subscription = Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.PREMIUM,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            self.subscription_list_url,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        active_subscription = Subscription.objects.get(
+            shop=self.shop,
+            status=Subscription.Status.ACTIVE,
+        )
+
+        self.assertContains(
+            response,
+            active_subscription.get_plan_display(),
+        )
+        self.assertContains(
+            response,
+            active_subscription.get_status_display(),
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "shops:subscription-edit",
+                args=[active_subscription.pk],
+            ),
+        )
+
+        self.assertNotContains(
+            response,
+            reverse(
+                "shops:subscription-edit",
+                args=[newer_expired_subscription.pk],
+            ),
+        )
     def test_shop_without_active_subscription_shows_waiting_banner(self):
         self.client.force_login(self.owner)
 
@@ -722,6 +1007,62 @@ class SubscriptionManagementTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(
+            response,
+            "Waiting for activation",
+        )
+
+    def test_shop_with_expired_subscription_shows_expired_banner(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("shops:dashboard")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Your subscription has expired",
+        )
+        self.assertContains(
+            response,
+            "Your public catalog is hidden until an admin renews your subscription.",
+        )
+        self.assertNotContains(
+            response,
+            "Waiting for activation",
+        )
+
+    def test_shop_with_cancelled_subscription_shows_cancelled_banner(self):
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.CANCELLED,
+            starts_on=self.today(),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("shops:dashboard")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Your subscription has been cancelled",
+        )
+        self.assertContains(
+            response,
+            "Your public catalog is hidden until an admin renews your subscription.",
+        )
+        self.assertNotContains(
             response,
             "Waiting for activation",
         )
