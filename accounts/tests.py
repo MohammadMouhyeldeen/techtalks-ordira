@@ -10,6 +10,417 @@ from django.utils.http import urlsafe_base64_encode
 
 from .models import User
 
+class RegistrationLoginLogoutTests(TestCase):
+
+    def test_successful_registration_creates_pending_shop_owner_and_logs_in(self):
+        response = self.client.post(
+            reverse("accounts:register"),
+            {
+                "full_name": "New Shop Owner",
+                "email": "newowner@example.com",
+                "password1": "GoodPassword99!",
+                "password2": "GoodPassword99!",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:pending_approval"),
+        )
+
+        user = User.objects.get(email="newowner@example.com")
+
+        self.assertEqual(
+            user.role,
+            User.Role.SHOP_OWNER,
+        )
+        self.assertEqual(
+            user.status,
+            User.Status.PENDING,
+        )
+        self.assertTrue(
+            user.has_usable_password(),
+        )
+        self.assertTrue(
+            response.wsgi_request.user.is_authenticated,
+        )
+        self.assertEqual(
+            response.wsgi_request.user.pk,
+            user.pk,
+        )
+    def test_registration_with_duplicate_email_is_rejected(self):
+        User.objects.create_user(
+            email="existing@example.com",
+            password="ExistingPass123!",
+            full_name="Existing User",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.PENDING,)
+        initial_count = User.objects.count()
+        response = self.client.post(reverse("accounts:register"),
+        {
+            "full_name": "Another User",
+            "email": "existing@example.com",
+            "password1": "GoodPassword99!",
+            "password2": "GoodPassword99!",
+        },)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.count(),
+        initial_count,)
+        self.assertFalse(response.wsgi_request.user.is_authenticated,)
+
+    def test_registration_with_weak_password_is_rejected(self):
+        initial_count = User.objects.count()
+        response = self.client.post(
+            reverse("accounts:register"),
+            {
+                "full_name": "Weak Password User",
+                "email": "weakpassword@example.com",
+                "password1": "123",
+                "password2": "123",})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.count(), initial_count)
+        self.assertFalse(User.objects.filter(email="weakpassword@example.com").exists())
+        self.assertFalse(response.wsgi_request.user.is_authenticated,)
+
+
+    def test_registration_with_mismatched_passwords_is_rejected(self):
+        initial_count = User.objects.count()
+
+        response = self.client.post(
+            reverse("accounts:register"),
+            {
+                "full_name": "Mismatch User",
+                "email": "mismatch@example.com",
+                "password1": "GoodPassword99!",
+                "password2": "DifferentPassword99!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.count(), initial_count)
+        self.assertFalse(
+            User.objects.filter(email="mismatch@example.com").exists()
+        )
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_registration_forces_shop_owner_and_pending_status(self):
+        response = self.client.post(
+            reverse("accounts:register"),
+            {
+                "full_name": "Forced Role User",
+                "email": "forced@example.com",
+                "password1": "GoodPassword99!",
+                "password2": "GoodPassword99!",
+                # Attempt to tamper with role/status.
+                "role": User.Role.ADMIN,
+                "status": User.Status.ACTIVE,
+            },
+        )
+        self.assertRedirects(
+            response,
+            reverse("accounts:pending_approval"),
+        )
+        user = User.objects.get(email="forced@example.com")
+        self.assertEqual(user.role, User.Role.SHOP_OWNER)
+        self.assertEqual(user.status, User.Status.PENDING)
+
+    def test_registration_without_csrf_token_is_forbidden(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        response = csrf_client.post(
+            reverse("accounts:register"),
+            {
+                "full_name": "CSRF Registration User",
+                "email": "csrf-registration@example.com",
+                "password1": "GoodPassword99!",
+                "password2": "GoodPassword99!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            User.objects.filter(email="csrf-registration@example.com").exists()
+        )
+
+    def test_login_with_valid_credentials_redirects_shop_owner_to_dashboard(self):
+        user = User.objects.create_user(
+            email="shopowner@example.com",
+            password="GoodPassword99!",
+            full_name="Shop Owner",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,)
+        response = self.client.post(
+            reverse("accounts:login"),
+            {
+                "email": "shopowner@example.com",
+                "password": "GoodPassword99!",
+            }
+        )
+        self.assertRedirects(
+            response,
+            reverse("shops:dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+        self.assertEqual(response.wsgi_request.user.pk, user.pk)
+
+
+    def test_login_with_wrong_password_is_rejected(self):
+        user = User.objects.create_user(
+            email="owner@example.com",
+            password="GoodPassword99!",
+            full_name="Shop Owner",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+        csrf_client = Client(enforce_csrf_checks=True)
+        login_url = reverse("accounts:login")
+        login_page = csrf_client.get(login_url)
+        csrf_token = login_page.cookies["csrftoken"].value
+        response = csrf_client.post(
+            login_url,
+            {
+                "email": user.email,
+                "password": "WrongPassword!",
+                "csrfmiddlewaretoken": csrf_token,
+
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_pending_user_login_redirects_to_pending_approval(self):
+        user = User.objects.create_user(
+            email="pending@example.com",
+            password="GoodPassword99!",
+            full_name="Pending Owner",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.PENDING,
+        )
+
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        login_url = reverse("accounts:login")
+
+        login_page = csrf_client.get(login_url)
+        csrf_token = login_page.cookies["csrftoken"].value
+
+        response = csrf_client.post(
+            login_url,
+            {
+                "email": user.email,
+                "password": "GoodPassword99!",
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:pending_approval"),
+        )
+
+    def test_suspended_user_login_redirects_to_account_suspended(self):
+        user = User.objects.create_user(
+            email="suspended@example.com",
+            password="GoodPassword99!",
+            full_name="Suspended Owner",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.SUSPENDED,
+        )
+
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        login_url = reverse("accounts:login")
+
+        login_page = csrf_client.get(login_url)
+        csrf_token = login_page.cookies["csrftoken"].value
+
+        response = csrf_client.post(
+            login_url,
+            {
+                "email": user.email,
+                "password": "GoodPassword99!",
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:account_suspended"),
+        )
+
+    def test_admin_login_redirects_to_admin_dashboard(self):
+        user = User.objects.create_user(
+            email="admin@example.com",
+            password="GoodPassword99!",
+            full_name="Admin User",
+            role=User.Role.ADMIN,
+            status=User.Status.ACTIVE,
+        )
+
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        login_url = reverse("accounts:login")
+
+        login_page = csrf_client.get(login_url)
+        csrf_token = login_page.cookies["csrftoken"].value
+
+        response = csrf_client.post(
+            login_url,
+            {
+                "email": user.email,
+                "password": "GoodPassword99!",
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:admin_dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+        self.assertEqual(response.wsgi_request.user.pk, user.pk)
+
+
+    def test_authenticated_shop_owner_visiting_login_redirects_to_dashboard(self):
+        user = User.objects.create_user(
+            email="alreadyloggedin@example.com",
+            password="GoodPassword99!",
+            full_name="Already Logged In",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("accounts:login"),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("shops:dashboard"),
+            fetch_redirect_response=False,
+        )
+
+    def test_authenticated_shop_owner_visiting_register_redirects_to_dashboard(self):
+        user = User.objects.create_user(
+            email="alreadyregistered@example.com",
+            password="GoodPassword99!",
+            full_name="Already Logged In",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("accounts:register"),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("shops:dashboard"),
+            fetch_redirect_response=False,
+        )
+
+    def test_login_without_csrf_token_is_forbidden(self):
+        user = User.objects.create_user(
+            email="csrflogin@example.com",
+            password="GoodPassword99!",
+            full_name="CSRF Login User",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        response = csrf_client.post(
+            reverse("accounts:login"),
+            {
+                "email": user.email,
+                "password": "GoodPassword99!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_logout_without_csrf_token_is_forbidden(self):
+        user = User.objects.create_user(
+            email="csrflogout@example.com",
+            password="GoodPassword99!",
+            full_name="CSRF Logout User",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(user)
+
+        response = csrf_client.post(
+            reverse("accounts:logout"),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(
+            "_auth_user_id" in csrf_client.session
+        )
+
+    def test_logout_with_valid_csrf_token_logs_user_out(self):
+        user = User.objects.create_user(
+            email="validlogout@example.com",
+            password="GoodPassword99!",
+            full_name="Valid Logout User",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        # Get a CSRF cookie while the client is still anonymous.
+        login_page = csrf_client.get(reverse("accounts:login"))
+        csrf_token = login_page.cookies["csrftoken"].value
+
+        # Now authenticate the client.
+        csrf_client.force_login(user)
+
+        response = csrf_client.post(
+            reverse("accounts:logout"),
+            {
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:login"),
+        )
+        self.assertNotIn("_auth_user_id", csrf_client.session)
+
+    def test_logout_with_get_request_does_not_log_user_out(self):
+        user = User.objects.create_user(
+            email="getlogout@example.com",
+            password="GoodPassword99!",
+            full_name="GET Logout User",
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.ACTIVE,
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("accounts:logout"),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:login"),
+            fetch_redirect_response=False,
+        )
+        self.assertIn("_auth_user_id", self.client.session)
+
 
 class UserStatusMiddlewareTests(TestCase):
     def create_user(self, status):
@@ -888,10 +1299,10 @@ class AdminCreateUserTests(TestCase):
         admin = self._make_admin()
         self._create_user_as_admin(admin)
         url = reverse("accounts:admin_link_display")
-        
+
         self.client.head(url)
         self.client.post(url)
-        
+
         # The key should still be there for the GET
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1466,7 +1877,7 @@ class AdminCreateUserTests(TestCase):
         log_line = log_ctx.output[0]
 
         new = User.objects.get(email="newuser@example.com")
-        
+
         # Must contain acting admin id, target id, role
         self.assertIn(str(admin.pk), log_line)
         self.assertIn(str(new.pk), log_line)
@@ -1660,13 +2071,13 @@ class AdminCreateUserConcurrencyTests(TransactionTestCase):
                 self.assertFalse(t.is_alive(), "Thread deadlocked")
             for err in errors:
                 self.assertIsNone(err, f"Thread raised: {err!r}")
-            
+
             self.assertEqual(
                 User.objects.filter(email="race@example.com").count(),
                 1,
                 "Concurrent same-email creates produced duplicate rows",
             )
-            
+
             # One thread must succeed (302) and one must fail (200 + form error)
             status_codes = [resp.status_code for resp in results]
             self.assertCountEqual(status_codes, [200, 302])
@@ -2048,7 +2459,7 @@ class AdminReissueTests(TestCase):
     def test_active_accounts_apage_independent_of_page(self):
         """?apage=1 must not affect the pending list's page param and vice versa."""
         admin = self._make_admin()
-        
+
         # Create 30 PENDING users
         for i in range(30):
             User.objects.create_user(
@@ -2067,19 +2478,19 @@ class AdminReissueTests(TestCase):
                 role=User.Role.SHOP_OWNER,
                 status=User.Status.ACTIVE,
             )
-            
+
         self.client.force_login(admin)
-        
+
         # ?page=2 should not affect apage (defaults to 1)
         r1 = self.client.get(reverse("accounts:admin_dashboard") + "?page=2")
         self.assertEqual(r1.context["page_obj"].number, 2)
         self.assertEqual(r1.context["active_page_obj"].number, 1)
-        
+
         # ?apage=2 should not affect page (defaults to 1)
         r2 = self.client.get(reverse("accounts:admin_dashboard") + "?apage=2")
         self.assertEqual(r2.context["page_obj"].number, 1)
         self.assertEqual(r2.context["active_page_obj"].number, 2)
-        
+
         # Both set
         r3 = self.client.get(reverse("accounts:admin_dashboard") + "?page=2&apage=2")
         self.assertEqual(r3.context["page_obj"].number, 2)
@@ -2098,7 +2509,7 @@ class AdminReissueTests(TestCase):
         content = response.content.decode()
         self.assertNotIn('<script>alert("xss")</script>', content)
         self.assertIn("&lt;script&gt;", content)
-        
+
     def test_active_accounts_reissue_onclick_has_no_user_data(self):
         admin = self._make_admin()
         xss_user = User.objects.create_user(
@@ -2110,7 +2521,7 @@ class AdminReissueTests(TestCase):
         self.client.force_login(admin)
         response = self.client.get(reverse("accounts:admin_dashboard"))
         content = response.content.decode()
-        
+
         # The exact onclick should match the constant string
         expected_onclick = "onclick=\"return confirm('Reset this account and generate a new link? Their current password and old links will stop working.')\""
         self.assertIn(expected_onclick, content)
@@ -2382,4 +2793,3 @@ class ChangePasswordAdminTests(TestCase):
         admin.refresh_from_db()
         self.assertTrue(admin.check_password("NewPass456!"))
         self.assertFalse(admin.check_password("OldPass123!"))
-
