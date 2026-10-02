@@ -2,6 +2,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render, get_object_or_404
+from django.db import IntegrityError, transaction
 from django.http import HttpResponseForbidden
 
 from accounts.models import User
@@ -77,13 +78,26 @@ def subscription_list(request):
         .select_related("shop")
     )
 
-    active_by_shop = {}
+    non_active_subscriptions = (
+        Subscription.objects
+        .exclude(status=Subscription.Status.ACTIVE)
+        .order_by("-starts_on", "-id")
+        .select_related("shop")
+    )
+
+    subscription_by_shop = {}
+    has_active_by_shop = {}
 
     for subscription in active_subscriptions:
-        active_by_shop.setdefault(
-            subscription.shop_id,
-            subscription,
-        )
+        shop_id = subscription.shop_id
+        if shop_id not in subscription_by_shop:
+            subscription_by_shop[shop_id] = subscription
+        has_active_by_shop[shop_id] = True
+
+    for subscription in non_active_subscriptions:
+        shop_id = subscription.shop_id
+        if shop_id not in subscription_by_shop:
+            subscription_by_shop[shop_id] = subscription
 
     shop_rows = []
 
@@ -91,7 +105,8 @@ def subscription_list(request):
         shop_rows.append(
             {
                 "shop": shop,
-                "active_subscription": active_by_shop.get(shop.id),
+                "subscription": subscription_by_shop.get(shop.id),
+                "has_active": has_active_by_shop.get(shop.id, False),
             }
         )
 
@@ -114,16 +129,20 @@ def subscription_create(request, shop_pk):
     shop = get_object_or_404(Shop, pk=shop_pk)
 
     if request.method == "POST":
-        form = SubscriptionForm(request.POST)
+        form = SubscriptionForm(request.POST, shop=shop)
 
         if form.is_valid():
             subscription = form.save(commit=False)
             subscription.shop = shop
-            subscription.save()
-
-            return redirect("shops:subscription-list")
+            try:
+                with transaction.atomic():
+                    subscription.save()
+            except IntegrityError:
+                form.add_error(None, "This shop already has an active subscription.")
+            else:
+                return redirect("shops:subscription-list")
     else:
-        form = SubscriptionForm()
+        form = SubscriptionForm(shop=shop)
 
     return render(
         request,
@@ -152,14 +171,19 @@ def subscription_edit(request, subscription_pk):
         form = SubscriptionForm(
             request.POST,
             instance=subscription,
+            shop=subscription.shop,
         )
 
         if form.is_valid():
-            form.save()
-
-            return redirect("shops:subscription-list")
+            try:
+                with transaction.atomic():
+                    form.save()
+            except IntegrityError:
+                form.add_error(None, "This shop already has an active subscription.")
+            else:
+                return redirect("shops:subscription-list")
     else:
-        form = SubscriptionForm(instance=subscription)
+        form = SubscriptionForm(instance=subscription, shop=subscription.shop)
 
     return render(
         request,
