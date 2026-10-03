@@ -1,0 +1,99 @@
+{% extends "storefront/base_public.html" %}
+{% load static %}
+
+{% block title %}Your Cart — {{ shop.name|default:"Sara's Closet" }}{% endblock %}
+{% block meta_description %}Review your cart from {{ shop.name|default:"Sara's Closet" }}.{% endblock %}
+
+{% block content %}
+
+<div class="container cart-page">
+  <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-ghost btn-sm back-link">
+    <svg width="16" height="16" class="back-link__icon"><use href="#i-arrow"/></svg>
+    Continue shopping
+  </a>
+
+  <h1 class="page-title cart-page__title">Your Cart</h1>
+
+  {% if removed_count %}
+  <p class="cart-notice">
+    {{ removed_count }} item{{ removed_count|pluralize }} in your cart
+    {{ removed_count|pluralize:"is,are" }} no longer available and
+    {{ removed_count|pluralize:"was,were" }} removed.
+  </p>
+  {% endif %}
+
+  {% if lines %}
+  <div class="cart-layout">
+
+    <div class="cart-lines">
+      {% for line in lines %}
+      <div class="cart-line" style="animation-delay:{% widthratio forloop.counter0 1 70 %}ms">
+        <div class="cart-line__media">
+          {% if line.variant.product.image %}
+            <img src="{{ line.variant.product.image.url }}" alt="{{ line.variant.product.name }}">
+          {% else %}
+            <span class="product-swatch swatch-{% cycle '1' '2' '3' '4' %}" aria-hidden="true">{{ line.variant.product.name|first }}</span>
+          {% endif %}
+        </div>
+
+        <div class="cart-line__info">
+          <a href="{% url 'product_detail' shop.slug line.variant.product_id %}" class="cart-line__name">{{ line.variant.product.name }}</a>
+          <span class="cart-line__variant">{{ line.variant.color }} · {{ line.variant.size }}</span>
+          <span class="cart-line__price">{{ line.unit_price }} {{ line.currency }} each</span>
+        </div>
+
+        <form method="post" action="{% url 'cart_update' shop.slug %}" class="cart-line__qty-form">
+          {% csrf_token %}
+          <input type="hidden" name="variant_id" value="{{ line.variant.pk }}">
+          <input type="number" name="quantity" value="{{ line.quantity }}" min="1"
+                 max="{{ line.variant.stock_quantity }}" class="cart-line__qty-input" aria-label="Quantity">
+          <button type="submit" class="btn btn-secondary btn-sm">Update</button>
+        </form>
+
+        <strong class="cart-line__total">{{ line.line_total }} {{ line.currency }}</strong>
+
+        <form method="post" action="{% url 'cart_remove' shop.slug %}" class="cart-line__remove-form"
+              onsubmit="return confirm('Remove this item from your cart?');">
+          {% csrf_token %}
+          <input type="hidden" name="variant_id" value="{{ line.variant.pk }}">
+          <button type="submit" class="cart-line__remove" aria-label="Remove {{ line.variant.product.name }} from cart">
+            <svg width="16" height="16"><use href="#i-close"/></svg>
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="cart-summary">
+      <div class="cart-summary__header">
+        <span class="cart-summary__icon"><svg width="16" height="16"><use href="#i-cart"/></svg></span>
+        <h2>Order Summary</h2>
+      </div>
+
+      <p class="cart-summary__note">Delivery fee is calculated at checkout.</p>
+
+      {% for currency, total in totals.items %}
+      <div class="cart-summary__grand-total">
+        <span>Subtotal{% if totals|length > 1 %} ({{ currency }}){% endif %}</span>
+        <strong>{{ total }} {{ currency }}</strong>
+      </div>
+      {% endfor %}
+
+      <a href="{% url 'checkout' shop.slug %}" class="btn btn-primary btn-lg cart-summary__cta">
+        Proceed to Checkout
+        <svg width="18" height="18"><use href="#i-arrow"/></svg>
+      </a>
+    </div>
+
+  </div>
+  {% else %}
+  <div class="cart-empty-state">
+    <svg width="40" height="40"><use href="#i-cart"/></svg>
+    <p>Your cart is empty.</p>
+    <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-primary">Browse the catalog</a>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
