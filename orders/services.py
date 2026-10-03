@@ -172,9 +172,10 @@ def create_order(
         variant.pk: variant
         for variant in (
             ProductVariant.objects
-            .select_for_update()
+            .select_for_update(of=("self",))
             .select_related("product")
             .filter(pk__in=requested_quantities)
+            .order_by("pk")
         )
     }
 

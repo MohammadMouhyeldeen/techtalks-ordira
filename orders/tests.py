@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from customers.models import Customer
 from products.models import (
@@ -366,3 +368,141 @@ class CheckoutServiceTests(TestCase):
 
         self.assertEqual(Order.objects.count(), 0)
         self.assertEqual(StockMovement.objects.count(), 0)
+
+    def test_tracking_tokens_are_generated_and_unique(self):
+        first_order = self.create_delivery_order()
+        second_order = self.create_delivery_order(
+            customer_phone="03999999",
+        )
+
+        self.assertIsNotNone(first_order.tracking_token)
+        self.assertIsNotNone(second_order.tracking_token)
+        self.assertNotEqual(
+            first_order.tracking_token,
+            second_order.tracking_token,
+        )
+
+    def test_inactive_variant_is_rejected(self):
+        self.usd_variant.is_active = False
+        self.usd_variant.save(update_fields=["is_active"])
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "is no longer available",
+        ):
+            self.create_delivery_order(
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_inactive_product_is_rejected(self):
+        self.product.is_active = False
+        self.product.save(update_fields=["is_active"])
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "is no longer available",
+        ):
+            self.create_delivery_order(
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_delivery_zone_from_another_shop_is_rejected(self):
+        other_owner = User.objects.create_user(
+            email="zone-owner@example.com",
+            password="testpass123",
+            full_name="Zone Owner",
+            status=User.Status.ACTIVE,
+        )
+        other_shop = Shop.objects.create(
+            owner=other_owner,
+            name="Zone Shop",
+            slug="zone-shop",
+            pickup_available=True,
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        other_zone = DeliveryZone.objects.create(
+            shop=other_shop,
+            area_name="Tripoli",
+            fee=Decimal("5.00"),
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "The selected delivery zone is not available.",
+        ):
+            self.create_delivery_order(
+                delivery_zone=other_zone,
+            )
+
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_pickup_order_with_delivery_zone_is_rejected(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Pickup orders cannot have a delivery zone.",
+        ):
+            self.create_delivery_order(
+                fulfillment_type=Order.FulfillmentType.PICKUP,
+                delivery_zone=self.delivery_zone,
+                address="",
+            )
+
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_zero_and_negative_quantities_are_rejected(self):
+        for quantity in (0, -1):
+            with self.subTest(quantity=quantity):
+                with self.assertRaisesMessage(
+                    ValidationError,
+                    "Item quantity must be a positive integer.",
+                ):
+                    self.create_delivery_order(
+                        items=[
+                            {
+                                "variant_id": self.usd_variant.pk,
+                                "quantity": quantity,
+                            },
+                        ],
+                    )
+
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+    def test_variant_query_uses_for_update_lock(self):
+        with CaptureQueriesContext(connection) as captured:
+            self.create_delivery_order(
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        variant_queries = [
+            query["sql"]
+            for query in captured.captured_queries
+            if "products_productvariant" in query["sql"].lower()
+        ]
+
+        self.assertTrue(
+            any(
+                "FOR UPDATE" in query.upper()
+                for query in variant_queries
+            ),
+            "Expected the ProductVariant query to use FOR UPDATE.",
+        )
