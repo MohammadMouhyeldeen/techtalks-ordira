@@ -161,8 +161,10 @@ class OrderItem(models.Model):
     )
     variant = models.ForeignKey(
         "products.ProductVariant",
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name="order_items",
+        blank=True,
+        null=True,
     )
 
     product_name_snapshot = models.CharField(max_length=150)
