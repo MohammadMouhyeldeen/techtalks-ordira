@@ -54,8 +54,12 @@ def order_success_preview(request, shop):
 
     Swap-in once orders.services.create_order exists: checkout's POST
     handler calls create_order(...) and redirects here with the real
-    order's pk; this view becomes
-        order = get_object_or_404(Order, pk=order_pk, shop=shop)
+    order's tracking_token (add a <uuid:tracking_token> segment to this
+    URL) — NOT the pk. Sequential pks would let anyone enumerate other
+    customers' orders by incrementing the URL and read their name/phone/
+    address; tracking_token is an unguessable UUID, same pattern the
+    model already uses for this exact purpose. This view then becomes
+        order = get_object_or_404(Order, tracking_token=tracking_token, shop=shop)
         order_items = order.items.select_related("variant")
     The template needs ZERO changes — Order/OrderItem are real model
     classes here too (just unsaved), so it already reads the exact same

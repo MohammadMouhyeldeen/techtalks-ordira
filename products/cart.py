@@ -12,7 +12,17 @@ carts:
 No price/stock validation lives here (that belongs to the real checkout
 service, orders.services.create_order, once SCRUM-65 merges) — this module
 only stores quantities and resolves them against live ProductVariant rows
-for display.
+for display. The one exception is a basic stock ceiling in add_item: a
+cart quantity is clamped so it can never exceed the variant's current
+stock, independent of whatever the calling view already checked.
+
+Read-only peeks (_cart/_bucket) use plain dict .get() rather than
+setdefault(), so a GET request that never touches the cart (browsing the
+catalog, a product page, even an empty cart page) never creates a session
+row or sets a cookie for that visitor. Only add_item actually creates the
+session/bucket structure; update_item and remove_item only ever modify a
+key that's already present — they can't be used to plant an unresolvable
+entry into someone's session.
 """
 from collections import defaultdict
 from decimal import Decimal
@@ -23,27 +33,39 @@ SESSION_KEY = "cart"
 
 
 def _cart(request):
-    return request.session.setdefault(SESSION_KEY, {})
+    """Read-only peek at the whole cart — never creates a session row."""
+    return request.session.get(SESSION_KEY, {})
 
 
 def _bucket(request, shop):
-    cart = _cart(request)
-    return cart.setdefault(str(shop.pk), {})
+    """Read-only peek at one shop's bucket — never creates a session row."""
+    return _cart(request).get(str(shop.pk), {})
 
 
 def add_item(request, shop, variant, quantity=1):
-    bucket = _bucket(request, shop)
+    quantity = min(quantity, variant.stock_quantity)
+    if quantity <= 0:
+        return
+
+    cart = request.session.setdefault(SESSION_KEY, {})
+    bucket = cart.setdefault(str(shop.pk), {})
     key = str(variant.pk)
-    bucket[key] = bucket.get(key, 0) + quantity
+    bucket[key] = min(bucket.get(key, 0) + quantity, variant.stock_quantity)
     request.session.modified = True
 
 
 def update_item(request, shop, variant_id, quantity):
+    """Only ever touches a key that's already in the bucket — this can
+    update or remove an existing line, but never create a new one, so a
+    bogus variant_id can't poison the session."""
     bucket = _bucket(request, shop)
     key = str(variant_id)
 
+    if key not in bucket:
+        return
+
     if quantity <= 0:
-        bucket.pop(key, None)
+        del bucket[key]
     else:
         bucket[key] = quantity
 
@@ -52,8 +74,11 @@ def update_item(request, shop, variant_id, quantity):
 
 def remove_item(request, shop, variant_id):
     bucket = _bucket(request, shop)
-    bucket.pop(str(variant_id), None)
-    request.session.modified = True
+    key = str(variant_id)
+
+    if key in bucket:
+        del bucket[key]
+        request.session.modified = True
 
 
 def get_lines(request, shop):
@@ -61,7 +86,17 @@ def get_lines(request, shop):
     if not bucket:
         return []
 
-    variant_ids = [int(pk) for pk in bucket]
+    variant_ids = set()
+    stale_keys = []
+    for key in bucket:
+        try:
+            variant_ids.add(int(key))
+        except (TypeError, ValueError):
+            # A key that isn't even a valid variant id — can't happen via
+            # add_item/update_item's own guards, but treat defensively as
+            # stale rather than letting int(key) blow up below.
+            stale_keys.append(key)
+
     variants = ProductVariant.objects.filter(
         pk__in=variant_ids,
         is_active=True,
@@ -71,8 +106,10 @@ def get_lines(request, shop):
     variants_by_id = {variant.pk: variant for variant in variants}
 
     lines = []
-    stale_keys = []
     for key, quantity in bucket.items():
+        if key in stale_keys:
+            continue
+
         variant = variants_by_id.get(int(key))
         if variant is None:
             stale_keys.append(key)
@@ -115,5 +152,6 @@ def get_totals(request, shop):
 
 def clear(request, shop):
     cart = _cart(request)
-    cart.pop(str(shop.pk), None)
-    request.session.modified = True
+    removed = cart.pop(str(shop.pk), None)
+    if removed is not None:
+        request.session.modified = True

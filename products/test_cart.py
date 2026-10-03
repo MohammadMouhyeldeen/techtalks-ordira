@@ -145,6 +145,61 @@ class CartStorageTests(TestCase):
         self.assertEqual(totals["USD"], Decimal("45.00"))
         self.assertEqual(totals["LBP"], Decimal("4000000.00"))
 
+    def test_add_item_clamps_quantity_to_stock(self):
+        request = _make_request()
+        cart.add_item(request, self.shop, self.variant, 999)
+
+        lines = cart.get_lines(request, self.shop)
+
+        self.assertEqual(lines[0]["quantity"], self.variant.stock_quantity)
+
+    def test_add_item_accumulation_also_clamps_to_stock(self):
+        request = _make_request()
+        cart.add_item(request, self.shop, self.variant, 7)
+        cart.add_item(request, self.shop, self.variant, 7)
+
+        lines = cart.get_lines(request, self.shop)
+
+        self.assertEqual(lines[0]["quantity"], self.variant.stock_quantity)
+
+    def test_add_item_with_zero_stock_adds_nothing(self):
+        out_of_stock = ProductVariant.objects.create(
+            product=self.product, color="Indigo", size="S",
+            unit_price="45.00", stock_quantity=0,
+        )
+        request = _make_request()
+        cart.add_item(request, self.shop, out_of_stock, 1)
+
+        self.assertEqual(cart.get_lines(request, self.shop), [])
+
+    def test_update_item_ignores_key_not_already_present(self):
+        """update_item must never plant a new entry — only modify one
+        that add_item already created. This is what stops a malformed
+        or unresolved variant_id from poisoning the session."""
+        request = _make_request()
+        cart.update_item(request, self.shop, 999999, 3)
+
+        self.assertEqual(cart.get_lines(request, self.shop), [])
+        self.assertEqual(cart.get_raw_count(request, self.shop), 0)
+
+    def test_read_only_helpers_do_not_create_a_session_bucket(self):
+        request = _make_request()
+        # _make_request()'s own forced session.save() flips `modified`
+        # (Django's db backend sets it when it creates the session row) —
+        # that's a harness artifact, not something under test. Clear it
+        # so the assertion below measures only what our own calls do.
+        request.session.modified = False
+
+        cart.get_lines(request, self.shop)
+        cart.get_item_count(request, self.shop)
+        cart.get_totals(request, self.shop)
+        cart.get_raw_count(request, self.shop)
+        cart.update_item(request, self.shop, self.variant.pk, 5)
+        cart.remove_item(request, self.shop, self.variant.pk)
+
+        self.assertNotIn(cart.SESSION_KEY, request.session)
+        self.assertFalse(request.session.modified)
+
 
 class CartViewTests(TestCase):
     def setUp(self):
@@ -171,6 +226,8 @@ class CartViewTests(TestCase):
         )
         self.cart_url = reverse("cart_view", args=[self.shop.slug])
         self.add_url = reverse("cart_add", args=[self.shop.slug])
+        self.update_url = reverse("cart_update", args=[self.shop.slug])
+        self.remove_url = reverse("cart_remove", args=[self.shop.slug])
 
     def test_valid_add_shows_on_cart_view(self):
         self.client.post(self.add_url, {"variant_id": self.variant.pk, "quantity": 2})
@@ -229,6 +286,103 @@ class CartViewTests(TestCase):
         response = self.client.get(self.cart_url)
 
         self.assertContains(response, "Your cart is empty")
+
+    def test_add_out_of_stock_variant_is_rejected(self):
+        out_of_stock = ProductVariant.objects.create(
+            product=self.product, color="Indigo", size="L",
+            unit_price="45.00", stock_quantity=0,
+        )
+
+        self.client.post(self.add_url, {"variant_id": out_of_stock.pk, "quantity": 1})
+        response = self.client.get(self.cart_url)
+
+        self.assertContains(response, "Your cart is empty")
+
+    def test_add_quantity_is_clamped_to_stock(self):
+        self.client.post(self.add_url, {"variant_id": self.variant.pk, "quantity": 999})
+
+        response = self.client.get(self.cart_url)
+
+        # 10 in stock x $45.00 = $450.00, never 999 x $45.00.
+        self.assertContains(response, "450.00")
+
+    def test_update_quantity_is_clamped_to_stock(self):
+        self.client.post(self.add_url, {"variant_id": self.variant.pk, "quantity": 1})
+        self.client.post(self.update_url, {"variant_id": self.variant.pk, "quantity": 999})
+
+        response = self.client.get(self.cart_url)
+
+        self.assertContains(response, "450.00")
+
+    def test_malformed_variant_id_on_add_does_not_500(self):
+        response = self.client.post(self.add_url, {"variant_id": "abc", "quantity": 1})
+
+        self.assertNotEqual(response.status_code, 500)
+
+    def test_malformed_variant_id_on_update_does_not_500(self):
+        response = self.client.post(self.update_url, {"variant_id": "abc", "quantity": 1})
+
+        self.assertNotEqual(response.status_code, 500)
+
+    def test_malformed_variant_id_on_remove_does_not_500(self):
+        response = self.client.post(self.remove_url, {"variant_id": "abc"})
+
+        self.assertNotEqual(response.status_code, 500)
+
+    def test_malformed_variant_id_on_update_does_not_poison_session(self):
+        self.client.post(self.add_url, {"variant_id": self.variant.pk, "quantity": 1})
+        self.client.post(self.update_url, {"variant_id": "abc", "quantity": 5})
+
+        response = self.client.get(self.cart_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Denim Jacket")
+
+
+class CartSessionHygieneTests(TestCase):
+    """A visitor who never touches the cart must never get a session
+    cookie written just for loading a page — storefront_cart's own read
+    (cart_count in the navbar) must not force-create one either."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "cart-hygiene-owner@example.com", "testpassword123",
+            full_name="Hygiene Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner, name="Sara's Closet", slug="saras-closet-hygiene",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        self.category = Category.objects.create(shop=self.shop, name="Clothing")
+        self.product = Product.objects.create(
+            shop=self.shop, category=self.category, name="Denim Jacket",
+        )
+        ProductVariant.objects.create(
+            product=self.product, color="Indigo", size="M",
+            unit_price="45.00", stock_quantity=10,
+        )
+
+    def test_catalog_view_creates_no_session_cookie(self):
+        response = self.client.get(reverse("public_catalog", args=[self.shop.slug]))
+
+        self.assertNotIn("sessionid", response.cookies)
+
+    def test_product_detail_view_creates_no_session_cookie(self):
+        response = self.client.get(
+            reverse("product_detail", args=[self.shop.slug, self.product.pk])
+        )
+
+        self.assertNotIn("sessionid", response.cookies)
+
+    def test_empty_cart_view_creates_no_session_cookie(self):
+        response = self.client.get(reverse("cart_view", args=[self.shop.slug]))
+
+        self.assertNotIn("sessionid", response.cookies)
 
 
 class CheckoutViewTests(TestCase):

@@ -98,8 +98,14 @@ def cart_add(request, shop):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
+    try:
+        variant_id = int(request.POST.get("variant_id"))
+    except (TypeError, ValueError):
+        messages.error(request, "That item is no longer available.")
+        return redirect("public_catalog", shop.slug)
+
     variant = ProductVariant.objects.filter(
-        pk=request.POST.get("variant_id"),
+        pk=variant_id,
         is_active=True,
         product__is_active=True,
         product__shop=shop,
@@ -109,10 +115,15 @@ def cart_add(request, shop):
         messages.error(request, "That item is no longer available.")
         return redirect("public_catalog", shop.slug)
 
+    if variant.stock_quantity <= 0:
+        messages.error(request, "That item is currently out of stock.")
+        return redirect("product_detail", shop.slug, variant.product_id)
+
     try:
         quantity = max(1, int(request.POST.get("quantity", 1)))
     except (TypeError, ValueError):
         quantity = 1
+    quantity = min(quantity, variant.stock_quantity)
 
     cart.add_item(request, shop, variant, quantity)
     messages.success(
@@ -141,11 +152,32 @@ def cart_update(request, shop):
         return HttpResponseNotAllowed(["POST"])
 
     try:
+        variant_id = int(request.POST.get("variant_id"))
+    except (TypeError, ValueError):
+        return redirect("cart_view", shop.slug)
+
+    try:
         quantity = int(request.POST.get("quantity", 0))
     except (TypeError, ValueError):
         quantity = 0
 
-    cart.update_item(request, shop, request.POST.get("variant_id"), quantity)
+    variant = ProductVariant.objects.filter(
+        pk=variant_id,
+        is_active=True,
+        product__is_active=True,
+        product__shop=shop,
+    ).first()
+
+    if variant is None:
+        # No longer resolvable — drop the stale line instead of trying
+        # to store a quantity for it.
+        cart.remove_item(request, shop, variant_id)
+        return redirect("cart_view", shop.slug)
+
+    if quantity > 0:
+        quantity = min(quantity, variant.stock_quantity)
+
+    cart.update_item(request, shop, variant_id, quantity)
     return redirect("cart_view", shop.slug)
 
 
@@ -154,7 +186,12 @@ def cart_remove(request, shop):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    cart.remove_item(request, shop, request.POST.get("variant_id"))
+    try:
+        variant_id = int(request.POST.get("variant_id"))
+    except (TypeError, ValueError):
+        return redirect("cart_view", shop.slug)
+
+    cart.remove_item(request, shop, variant_id)
     messages.success(request, "Item removed from cart.")
     return redirect("cart_view", shop.slug)
 
