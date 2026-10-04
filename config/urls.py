@@ -21,6 +21,7 @@ from django.urls import include, path
 from django.views.generic import TemplateView
 
 from products import storefront_views
+from orders import views as order_views
 
 
 urlpatterns = [
@@ -37,6 +38,16 @@ urlpatterns = [
         "store/<slug:shop_slug>/products/<int:product_pk>/",
         storefront_views.product_detail,
         name="product_detail",
+    ),
+    path("store/<slug:shop_slug>/cart/", storefront_views.cart_view, name="cart_view"),
+    path("store/<slug:shop_slug>/cart/add/", storefront_views.cart_add, name="cart_add"),
+    path("store/<slug:shop_slug>/cart/update/", storefront_views.cart_update, name="cart_update"),
+    path("store/<slug:shop_slug>/cart/remove/", storefront_views.cart_remove, name="cart_remove"),
+    path("store/<slug:shop_slug>/checkout/", storefront_views.checkout, name="checkout"),
+    path(
+        "store/<slug:shop_slug>/order-success/",
+        order_views.order_success_preview,
+        name="order_success",
     ),
     path("products/", include("products.urls")),
 ]

@@ -1,0 +1,116 @@
+{% extends "storefront/base_public.html" %}
+{% load static %}
+
+{% block title %}Order Confirmation — {{ shop.name|default:"Sara's Closet" }}{% endblock %}
+{% block meta_description %}Order confirmation preview for {{ shop.name|default:"Sara's Closet" }}.{% endblock %}
+
+{% block content %}
+
+<div class="container order-success-page">
+
+  <div class="preview-banner">
+    <span class="preview-banner__icon"><svg width="16" height="16"><use href="#i-check"/></svg></span>
+    <span>
+      This is a preview of the order-success page — ordering isn't live yet, no real order was placed.
+      {% if is_preview_fallback %}You're viewing a generic example order below.{% endif %}
+    </span>
+  </div>
+
+  <div class="order-success-hero">
+    <span class="order-success-hero__icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <h1>Order received</h1>
+    <p>Order <strong>{{ order.order_number }}</strong> · {{ order.get_status_display }}</p>
+  </div>
+
+  <div class="checkout-layout">
+
+    <div class="order-success-details">
+      <div class="checkout-section checkout-section--fulfillment" style="animation-delay:40ms">
+        <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-truck"/></svg></span>Fulfillment</h2>
+        <p><strong>{{ order.get_fulfillment_type_display }}</strong></p>
+        {% if order.fulfillment_type == "DELIVERY" %}
+          <p>{{ order.zone_name_snapshot }} — {{ order.address_snapshot }}</p>
+        {% else %}
+          <p>Ready for pickup at {{ shop.name|default:"Sara's Closet" }}.</p>
+        {% endif %}
+      </div>
+
+      <div class="checkout-section checkout-section--contact" style="animation-delay:120ms">
+        <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-users"/></svg></span>Customer</h2>
+        <p>{{ order.customer_name_snapshot }}</p>
+        <p>{{ order.customer_phone_snapshot }}</p>
+        <p>{{ payment_method_display }}</p>
+      </div>
+    </div>
+
+    <div class="cart-summary" style="animation-delay:80ms">
+      <div class="cart-summary__header">
+        <span class="cart-summary__icon"><svg width="16" height="16"><use href="#i-cart"/></svg></span>
+        <h2>Items</h2>
+      </div>
+
+      <div class="cart-summary__lines">
+        {% for item in order_items %}
+        <div class="cart-summary__line">
+          <span class="cart-summary__dot swatch-{% cycle '1' '2' '3' '4' %}" aria-hidden="true"></span>
+          <span class="cart-summary__line-text">{{ item.quantity }} × {{ item.product_name_snapshot }} <small>({{ item.color_snapshot }}, {{ item.size_snapshot }})</small></span>
+          <strong>{{ item.line_total }} {{ order.currency }}</strong>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="cart-summary__totals">
+        <div class="cart-summary__row">
+          <span>Subtotal</span>
+          <strong>{{ order.items_total }} {{ order.currency }}</strong>
+        </div>
+        {% if order.delivery_fee_snapshot %}
+        <div class="cart-summary__row">
+          <span>Delivery fee</span>
+          <strong>{{ order.delivery_fee_snapshot }} {{ order.currency }}</strong>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="cart-summary__grand-total">
+        <span>Total</span>
+        <strong><span class="cart-summary__total-value" data-count="{{ order.total }}">{{ order.total }}</span> {{ order.currency }}</strong>
+      </div>
+    </div>
+
+  </div>
+
+  <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-primary btn-lg order-success-page__cta">
+    Back to shop
+  </a>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const el = document.querySelector(".cart-summary__total-value[data-count]");
+    if (!el || prefersReducedMotion) return;
+
+    const target = parseFloat(el.getAttribute("data-count")) || 0;
+    const duration = 900;
+    const start = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = (target * eased).toFixed(2);
+      if (progress < 1) requestAnimationFrame(tick);
+      else el.textContent = target.toFixed(2);
+    };
+
+    el.textContent = "0.00";
+    requestAnimationFrame(tick);
+  })();
+</script>
+{% endblock %}

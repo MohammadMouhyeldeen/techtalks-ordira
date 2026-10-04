@@ -26,9 +26,9 @@
     <h3 class="product-card__name"><a href="{% url 'product_detail' shop.slug product.id %}">{{ product.name }}</a></h3>
     <div class="product-card__row">
       <strong class="product-card__price">${{ product.price }}</strong>
-      <button type="button" class="btn btn-secondary btn-sm product-card__add" aria-label="Add {{ product.name }} to cart">
+      <a href="{% url 'product_detail' shop.slug product.id %}" class="btn btn-secondary btn-sm product-card__add" aria-label="View options for {{ product.name }}">
         <svg width="16" height="16"><use href="#i-cart"/></svg>
-      </button>
+      </a>
     </div>
   </div>
 </article>

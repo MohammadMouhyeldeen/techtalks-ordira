@@ -1,0 +1,155 @@
+{% extends "storefront/base_public.html" %}
+{% load static %}
+
+{% block title %}Checkout — {{ shop.name|default:"Sara's Closet" }}{% endblock %}
+{% block meta_description %}Complete your order from {{ shop.name|default:"Sara's Closet" }}.{% endblock %}
+
+{% block content %}
+
+<div class="container checkout-page">
+  <a href="{% url 'cart_view' shop.slug %}" class="btn btn-ghost btn-sm back-link">
+    <svg width="16" height="16" class="back-link__icon"><use href="#i-arrow"/></svg>
+    Back to cart
+  </a>
+
+  <div class="preview-banner">
+    <span class="preview-banner__icon"><svg width="16" height="16"><use href="#i-check"/></svg></span>
+    <span>This checkout is a preview. Ordering isn't live yet — placing an order here won't charge you or notify the shop.</span>
+  </div>
+
+  <h1 class="page-title checkout-page__title">Checkout</h1>
+
+  <div class="checkout-layout">
+
+    <form method="post" class="checkout-form" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="form-errors">
+          {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="checkout-section checkout-section--contact" style="animation-delay:40ms">
+        <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-users"/></svg></span>Contact details</h2>
+        <div class="form-field">
+          <label for="{{ form.customer_name.id_for_label }}">{{ form.customer_name.label }}</label>
+          {{ form.customer_name }}
+          {% if form.customer_name.errors %}
+            <ul class="field-errors">{% for e in form.customer_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.customer_phone.id_for_label }}">{{ form.customer_phone.label }}</label>
+          {{ form.customer_phone }}
+          {% if form.customer_phone.errors %}
+            <ul class="field-errors">{% for e in form.customer_phone.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="checkout-section checkout-section--fulfillment" style="animation-delay:120ms">
+        <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-truck"/></svg></span>Fulfillment</h2>
+        <div class="fulfillment-options" id="fulfillmentOptions">
+          {% for radio in form.fulfillment_type %}
+            <label class="fulfillment-option">
+              {{ radio.tag }}
+              <span>{{ radio.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+
+        <div class="form-field" id="deliveryZoneField">
+          <label for="{{ form.delivery_zone.id_for_label }}">{{ form.delivery_zone.label }}</label>
+          <div class="select-wrap" data-icon="i-truck">
+            {{ form.delivery_zone }}
+          </div>
+          {% if form.delivery_zone.errors %}
+            <ul class="field-errors">{% for e in form.delivery_zone.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+        <div class="form-field" id="addressField">
+          <label for="{{ form.address.id_for_label }}">{{ form.address.label }}</label>
+          {{ form.address }}
+          {% if form.address.errors %}
+            <ul class="field-errors">{% for e in form.address.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="checkout-section checkout-section--payment" style="animation-delay:200ms">
+        <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-wallet"/></svg></span>Payment</h2>
+        <div class="form-field">
+          <label for="{{ form.selected_payment_method.id_for_label }}">{{ form.selected_payment_method.label }}</label>
+          <div class="select-wrap" data-icon="i-wallet">
+            {{ form.selected_payment_method }}
+          </div>
+          {% if form.selected_payment_method.errors %}
+            <ul class="field-errors">{% for e in form.selected_payment_method.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.currency.id_for_label }}">Currency</label>
+          <div class="select-wrap">
+            {{ form.currency }}
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg checkout-form__submit">
+        Place Order
+        <svg width="18" height="18"><use href="#i-arrow"/></svg>
+      </button>
+    </form>
+
+    <div class="cart-summary" style="animation-delay:80ms">
+      <div class="cart-summary__header">
+        <span class="cart-summary__icon"><svg width="16" height="16"><use href="#i-cart"/></svg></span>
+        <h2>Order Summary</h2>
+      </div>
+
+      <div class="cart-summary__lines">
+        {% for line in lines %}
+        <div class="cart-summary__line">
+          <span class="cart-summary__dot swatch-{% cycle '1' '2' '3' '4' %}" aria-hidden="true"></span>
+          <span class="cart-summary__line-text">{{ line.quantity }} × {{ line.variant.product.name }} <small>({{ line.variant.color }}, {{ line.variant.size }})</small></span>
+          <strong>{{ line.line_total }} {{ line.currency }}</strong>
+        </div>
+        {% endfor %}
+      </div>
+
+      <p class="cart-summary__note">Delivery fee is added once you choose an area.</p>
+
+      {% for currency, total in totals.items %}
+      <div class="cart-summary__grand-total">
+        <span>Subtotal{% if totals|length > 1 %} ({{ currency }}){% endif %}</span>
+        <strong>{{ total }} {{ currency }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'storefront/js/custom-select.js' %}"></script>
+<script>
+  (() => {
+    const radios = document.querySelectorAll('#fulfillmentOptions input[type="radio"]');
+    const deliveryZoneField = document.getElementById('deliveryZoneField');
+    const addressField = document.getElementById('addressField');
+
+    const sync = () => {
+      const selected = document.querySelector('#fulfillmentOptions input[type="radio"]:checked');
+      const isDelivery = !selected || selected.value === 'DELIVERY';
+      deliveryZoneField.hidden = !isDelivery;
+      addressField.hidden = !isDelivery;
+    };
+
+    radios.forEach((radio) => radio.addEventListener('change', sync));
+    sync();
+  })();
+</script>
+{% endblock %}
