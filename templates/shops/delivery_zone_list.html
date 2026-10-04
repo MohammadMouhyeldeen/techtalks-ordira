@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Delivery Zones</h1>
+
+    <p>
+        Manage delivery areas and fees for {{ shop.name }}.
+    </p>
+
+    <p>
+        <a href="{% url 'shops:delivery-zone-create' shop_pk=shop.pk %}">
+            Add delivery zone
+        </a>
+    </p>
+
+    {% if zones %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Area</th>
+                    <th>Fee</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for zone in zones %}
+                    <tr>
+                        <td>{{ zone.area_name }}</td>
+                        <td>{{ zone.fee }}</td>
+                        <td>
+                            {% if zone.is_active %}
+                                Active
+                            {% else %}
+                                Inactive
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'shops:delivery-zone-edit' shop_pk=shop.pk zone_pk=zone.pk %}">
+                                Edit
+                            </a>
+
+                            <form
+                                method="post"
+                                action="{% url 'shops:delivery-zone-delete' shop_pk=shop.pk zone_pk=zone.pk %}"
+                                style="display:inline;"
+                            >
+                                {% csrf_token %}
+                                <button type="submit">
+                                    Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No delivery zones configured yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -9,7 +9,7 @@ from django.urls import reverse
 from PIL import Image
 
 from accounts.models import User
-from .models import Shop, Subscription
+from .models import Shop, Subscription, DeliveryZone
 
 from datetime import date, timedelta
 
@@ -1348,3 +1348,365 @@ class SubscriptionBannerTemplateTests(TestCase):
         response = self.client.get(self.dashboard_url)
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("subscription-banner", response.content.decode())
+
+class DeliveryZoneTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "delivery-owner@example.com",
+            "testpassword123",
+            full_name="Delivery Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.other_owner = User.objects.create_user(
+            "other-delivery-owner@example.com",
+            "testpassword123",
+            full_name="Other Delivery Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.admin = User.objects.create_user(
+            "delivery-admin@example.com",
+            "testpassword123",
+            full_name="Delivery Admin",
+            status=User.Status.ACTIVE,
+            role=User.Role.ADMIN,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Delivery Shop",
+            slug="delivery-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        self.other_shop = Shop.objects.create(
+            owner=self.other_owner,
+            name="Other Delivery Shop",
+            slug="other-delivery-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        self.zone = DeliveryZone.objects.create(
+            shop=self.shop,
+            area_name="Achrafieh",
+            fee="5.00",
+        )
+
+        self.other_zone = DeliveryZone.objects.create(
+            shop=self.other_shop,
+            area_name="Hamra",
+            fee="7.00",
+        )
+
+        self.client.force_login(self.owner)
+
+    def test_unauthenticated_owner_list_is_redirected_to_login(self):
+        self.client.logout()
+
+        response = self.client.get(
+            reverse(
+                "shops:delivery-zone-list",
+                kwargs={"shop_pk": self.shop.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("accounts:login"),
+            response.url,
+        )
+
+    def test_owner_can_list_own_delivery_zones(self):
+        response = self.client.get(
+            reverse(
+                "shops:delivery-zone-list",
+                kwargs={"shop_pk": self.shop.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.zone.area_name)
+        self.assertNotContains(response, self.other_zone.area_name)
+
+    def test_owner_cannot_list_another_shops_delivery_zones(self):
+        response = self.client.get(
+            reverse(
+                "shops:delivery-zone-list",
+                kwargs={"shop_pk": self.other_shop.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_cannot_access_shop_owner_delivery_zones(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse(
+                "shops:delivery-zone-list",
+                kwargs={"shop_pk": self.shop.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_owner_can_create_delivery_zone_for_own_shop(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.shop.pk},
+            ),
+            {
+                "area_name": "Jounieh",
+                "fee": "6.50",
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        zone = DeliveryZone.objects.get(
+            shop=self.shop,
+            area_name="Jounieh",
+        )
+
+        self.assertEqual(zone.fee, 6.50)
+        self.assertTrue(zone.is_active)
+
+    def test_owner_cannot_create_delivery_zone_for_another_shop(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.other_shop.pk},
+            ),
+            {
+                "area_name": "Unauthorized Area",
+                "fee": "4.00",
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
+            DeliveryZone.objects.filter(
+                shop=self.other_shop,
+                area_name="Unauthorized Area",
+            ).exists()
+        )
+
+    def test_owner_can_create_inactive_delivery_zone(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.shop.pk},
+            ),
+            {
+                "area_name": "Inactive Area",
+                "fee": "3.00",
+                "is_active": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        zone = DeliveryZone.objects.get(
+            shop=self.shop,
+            area_name="Inactive Area",
+        )
+
+        self.assertFalse(zone.is_active)
+
+    def test_duplicate_area_name_is_rejected_within_same_shop(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.shop.pk},
+            ),
+            {
+                "area_name": "Achrafieh",
+                "fee": "8.00",
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            DeliveryZone.objects.filter(
+                shop=self.shop,
+                area_name="Achrafieh",
+            ).count(),
+            1,
+        )
+
+    def test_same_area_name_is_allowed_in_different_shop(self):
+        other_zone = DeliveryZone.objects.create(
+            shop=self.other_shop,
+            area_name="Achrafieh",
+            fee="8.00",
+        )
+
+        self.assertEqual(
+            other_zone.area_name,
+            "Achrafieh",
+        )
+        self.assertEqual(
+            DeliveryZone.objects.filter(
+                area_name="Achrafieh",
+            ).count(),
+            2,
+        )
+
+    def test_negative_delivery_fee_is_rejected(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.shop.pk},
+            ),
+            {
+                "area_name": "Negative Fee Area",
+                "fee": "-1.00",
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            DeliveryZone.objects.filter(
+                shop=self.shop,
+                area_name="Negative Fee Area",
+            ).exists()
+        )
+
+    def test_owner_can_edit_own_delivery_zone(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-edit",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "zone_pk": self.zone.pk,
+                },
+            ),
+            {
+                "area_name": "Updated Area",
+                "fee": "9.50",
+                "is_active": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.zone.refresh_from_db()
+
+        self.assertEqual(
+            self.zone.area_name,
+            "Updated Area",
+        )
+        self.assertEqual(
+            self.zone.fee,
+            9.50,
+        )
+        self.assertFalse(self.zone.is_active)
+
+    def test_owner_cannot_edit_another_shops_delivery_zone(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-edit",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "zone_pk": self.other_zone.pk,
+                },
+            ),
+            {
+                "area_name": "Should Not Change",
+                "fee": "99.00",
+                "is_active": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.other_zone.refresh_from_db()
+
+        self.assertEqual(
+            self.other_zone.area_name,
+            "Hamra",
+        )
+        self.assertEqual(
+            self.other_zone.fee,
+            7.00,
+        )
+        self.assertTrue(self.other_zone.is_active)
+
+    def test_owner_can_delete_own_delivery_zone(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-delete",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "zone_pk": self.zone.pk,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            DeliveryZone.objects.filter(
+                pk=self.zone.pk,
+            ).exists()
+        )
+
+    def test_owner_cannot_delete_another_shops_delivery_zone(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-delete",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "zone_pk": self.other_zone.pk,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(
+            DeliveryZone.objects.filter(
+                pk=self.other_zone.pk,
+            ).exists()
+        )
+
+    def test_delivery_zone_delete_rejects_get_request(self):
+        response = self.client.get(
+            reverse(
+                "shops:delivery-zone-delete",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "zone_pk": self.zone.pk,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_area_name_is_trimmed(self):
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.shop.pk},
+            ),
+            {
+                "area_name": "  Downtown  ",
+                "fee": "4.00",
+                "is_active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        zone = DeliveryZone.objects.get(
+            shop=self.shop,
+            area_name="Downtown",
+        )
+
+        self.assertEqual(zone.area_name, "Downtown")

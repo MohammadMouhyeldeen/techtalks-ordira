@@ -24,4 +24,24 @@ urlpatterns = [
         views.subscription_edit,
         name="subscription-edit",
     ),
+    path(
+        "shops/<int:shop_pk>/delivery-zones/",
+        views.delivery_zone_list,
+        name="delivery-zone-list",
+    ),
+    path(
+        "shops/<int:shop_pk>/delivery-zones/create/",
+        views.delivery_zone_create,
+        name="delivery-zone-create",
+    ),
+    path(
+        "shops/<int:shop_pk>/delivery-zones/<int:zone_pk>/edit/",
+        views.delivery_zone_edit,
+        name="delivery-zone-edit",
+    ),
+    path(
+        "shops/<int:shop_pk>/delivery-zones/<int:zone_pk>/delete/",
+        views.delivery_zone_delete,
+        name="delivery-zone-delete",
+    ),
 ]
