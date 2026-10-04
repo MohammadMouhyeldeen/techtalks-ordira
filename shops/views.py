@@ -6,6 +6,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts.models import User
+from orders.models import Order
+
 from .forms import (
     DeliveryZoneForm,
     ShopSettingsForm,
@@ -14,6 +16,7 @@ from .forms import (
 )
 from .helpers import get_dashboard_stats, is_catalog_public, subscription_status
 from .models import DeliveryZone, Shop, Subscription
+
 
 
 
@@ -255,6 +258,7 @@ def dashboard(request):
         },
     )
 
+
 @login_required
 def delivery_zone_list(request, shop_pk):
     shop = get_owner_shop(request, shop_pk)
@@ -353,20 +357,25 @@ def delivery_zone_edit(request, shop_pk, zone_pk):
 @require_POST
 def delivery_zone_delete(request, shop_pk, zone_pk):
     shop = get_owner_shop(request, shop_pk)
-
     zone = get_object_or_404(
         DeliveryZone,
         pk=zone_pk,
         shop=shop,
     )
 
+    if Order.objects.filter(delivery_zone=zone).exists():
+        messages.warning(
+            request,
+            "This delivery zone is used by existing orders. "
+            "Deactivate it instead of deleting it.",
+        )
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
     zone.delete()
-
-    messages.success(
-        request,
-        "Delivery zone deleted successfully.",
-    )
-
+    messages.success(request, "Delivery zone deleted successfully.")
     return redirect(
         "shops:delivery-zone-list",
         shop_pk=shop.pk,

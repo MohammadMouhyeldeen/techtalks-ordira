@@ -187,6 +187,7 @@ class SubscriptionForm(forms.ModelForm):
 
         return cleaned_data
 
+
 class DeliveryZoneForm(forms.ModelForm):
     class Meta:
         model = DeliveryZone

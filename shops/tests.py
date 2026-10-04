@@ -9,11 +9,16 @@ from django.urls import reverse
 from PIL import Image
 
 from accounts.models import User
-from .models import Shop, Subscription, DeliveryZone
+from customers.models import Customer
+from orders.models import Order
+
+from .models import Shop, Subscription, DeliveryZone, ShopPaymentMethod
 
 from datetime import date, timedelta
 
 from .helpers import is_catalog_public, get_latest_subscription, subscription_status
+
+
 
 
 class ShopSetupTests(TestCase):
@@ -1658,6 +1663,71 @@ class DeliveryZoneTests(TestCase):
             ).exists()
         )
 
+    def test_owner_cannot_delete_delivery_zone_used_by_order(self):
+        customer = Customer.objects.create(
+            shop=self.shop,
+            full_name="Test Customer",
+            phone_number="961701234567",
+        )
+
+        payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop,
+            method_name="Cash",
+            enabled=True,
+        )
+
+        order = Order.objects.create(
+            shop=self.shop,
+            customer=customer,
+            delivery_zone=self.zone,
+            selected_payment_method=payment_method,
+            order_number="ORD-DELIVERY-ZONE-1",
+            fulfillment_type="DELIVERY",
+            status="PENDING",
+            customer_name_snapshot=customer.full_name,
+            customer_phone_snapshot=customer.phone_number,
+            zone_name_snapshot=self.zone.area_name,
+            delivery_fee_snapshot=self.zone.fee,
+            address_snapshot="Test Address",
+            items_total="100.00",
+            total="105.00",
+            currency="USD",
+            fx_rate_snapshot=self.shop.exchange_rate_lbp_per_usd,
+            cancellation_reason="",
+        )
+
+        response = self.client.post(
+            reverse(
+                "shops:delivery-zone-delete",
+                kwargs={
+                    "shop_pk": self.shop.pk,
+                    "zone_pk": self.zone.pk,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.assertTrue(
+            DeliveryZone.objects.filter(
+                pk=self.zone.pk,
+            ).exists()
+        )
+
+        self.assertTrue(
+            Order.objects.filter(
+                pk=order.pk,
+                delivery_zone=self.zone,
+            ).exists()
+        )
+
+        messages = list(response.wsgi_request._messages)
+        self.assertTrue(
+            any(
+                "Deactivate it instead of deleting it." in str(message)
+                for message in messages
+            )
+        )
     def test_owner_cannot_delete_another_shops_delivery_zone(self):
         response = self.client.post(
             reverse(
