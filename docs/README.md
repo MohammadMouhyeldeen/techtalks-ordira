@@ -44,8 +44,8 @@ Task documentation is organized by sprint under `docs/tasks/`.
 #### Sprint 4
 
 - [SCRUM-45 — CRUD Interface Integration Follow-up](tasks/sprint-4/SCRUM-45-crud-interface-follow-up.md)
+- [SCRUM-65 — Atomic Order Checkout Service](tasks/sprint-4/SCRUM-65-order-checkout.md)
 - [SCRUM-73 — Create the New Documentation System](tasks/sprint-4/SCRUM-73-documentation-system.md)
-
 
 ## Documentation structure
 
