@@ -1,14 +1,23 @@
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render, get_object_or_404
 from django.db import IntegrityError, transaction
 from django.http import HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from accounts.models import User
-from .forms import ShopSetupForm, ShopSettingsForm, SubscriptionForm
+from orders.models import Order
+
+from .forms import (
+    DeliveryZoneForm,
+    ShopSettingsForm,
+    ShopSetupForm,
+    SubscriptionForm,
+)
 from .helpers import get_dashboard_stats, is_catalog_public, subscription_status
-from .models import Shop, Subscription
+from .models import DeliveryZone, Shop, Subscription
+
+
 
 
 
@@ -60,6 +69,13 @@ def _require_admin(request):
         return HttpResponseForbidden("Admin access required.")
 
     return None
+
+def get_owner_shop(request, shop_pk):
+    return get_object_or_404(
+        Shop,
+        pk=shop_pk,
+        owner=request.user,
+    )
 
 
 @login_required
@@ -240,4 +256,127 @@ def dashboard(request):
             "subscription_status": subscription_status_value,
             "is_shop_owner": is_shop_owner,
         },
+    )
+
+
+@login_required
+def delivery_zone_list(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    zones = DeliveryZone.objects.filter(
+        shop=shop,
+    )
+
+    return render(
+        request,
+        "shops/delivery_zone_list.html",
+        {
+            "shop": shop,
+            "zones": zones,
+        },
+    )
+
+
+@login_required
+def delivery_zone_create(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    form = DeliveryZoneForm(
+        request.POST or None,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        zone = form.save(commit=False)
+        zone.shop = shop
+        zone.save()
+
+        messages.success(
+            request,
+            "Delivery zone created successfully.",
+        )
+
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "shops/delivery_zone_form.html",
+        {
+            "shop": shop,
+            "form": form,
+            "page_title": "Create delivery zone",
+        },
+    )
+
+
+@login_required
+def delivery_zone_edit(request, shop_pk, zone_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    zone = get_object_or_404(
+        DeliveryZone,
+        pk=zone_pk,
+        shop=shop,
+    )
+
+    form = DeliveryZoneForm(
+        request.POST or None,
+        instance=zone,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+
+        messages.success(
+            request,
+            "Delivery zone updated successfully.",
+        )
+
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "shops/delivery_zone_form.html",
+        {
+            "shop": shop,
+            "zone": zone,
+            "form": form,
+            "page_title": "Edit delivery zone",
+        },
+    )
+
+
+@login_required
+@require_POST
+def delivery_zone_delete(request, shop_pk, zone_pk):
+    shop = get_owner_shop(request, shop_pk)
+    zone = get_object_or_404(
+        DeliveryZone,
+        pk=zone_pk,
+        shop=shop,
+    )
+
+    if Order.objects.filter(delivery_zone=zone).exists():
+        messages.warning(
+            request,
+            "This delivery zone is used by existing orders. "
+            "Deactivate it instead of deleting it.",
+        )
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
+    zone.delete()
+    messages.success(request, "Delivery zone deleted successfully.")
+    return redirect(
+        "shops:delivery-zone-list",
+        shop_pk=shop.pk,
     )

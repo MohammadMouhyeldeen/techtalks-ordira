@@ -2,7 +2,7 @@ import re
 
 from django import forms
 
-from .models import Shop, Subscription
+from .models import DeliveryZone, Shop, Subscription
 
 
 class ShopContactLogoCleanMixin:
@@ -186,3 +186,36 @@ class SubscriptionForm(forms.ModelForm):
                     )
 
         return cleaned_data
+
+
+class DeliveryZoneForm(forms.ModelForm):
+    class Meta:
+        model = DeliveryZone
+        fields = [
+            "area_name",
+            "fee",
+            "is_active",
+        ]
+
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
+    def clean_area_name(self):
+        area_name = self.cleaned_data["area_name"].strip()
+
+        if self.shop and area_name:
+            zones = DeliveryZone.objects.filter(
+                shop=self.shop,
+                area_name__iexact=area_name,
+            )
+
+            if self.instance.pk:
+                zones = zones.exclude(pk=self.instance.pk)
+
+            if zones.exists():
+                raise forms.ValidationError(
+                    "A delivery zone with this name already exists in your shop."
+                )
+
+        return area_name
