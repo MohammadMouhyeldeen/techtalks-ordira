@@ -45,8 +45,8 @@ urlpatterns = [
     path("store/<slug:shop_slug>/cart/remove/", storefront_views.cart_remove, name="cart_remove"),
     path("store/<slug:shop_slug>/checkout/", storefront_views.checkout, name="checkout"),
     path(
-        "store/<slug:shop_slug>/order-success/",
-        order_views.order_success_preview,
+        "store/<slug:shop_slug>/order-success/<uuid:tracking_token>/",
+        order_views.order_success,
         name="order_success",
     ),
     path("products/", include("products.urls")),

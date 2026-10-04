@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -510,7 +511,10 @@ class CheckoutServiceTests(TestCase):
         )
 
 
-class OrderSuccessPreviewTests(TestCase):
+class OrderSuccessViewTests(TestCase):
+    """Order-success is now a real page, looked up by the order's own
+    tracking_token (never by pk — see the security note in orders/views.py)."""
+
     def setUp(self):
         self.owner = User.objects.create_user(
             "order-success-owner@example.com", "testpassword123",
@@ -536,65 +540,58 @@ class OrderSuccessPreviewTests(TestCase):
         self.payment_method = ShopPaymentMethod.objects.create(
             shop=self.shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
         )
-        self.order_success_url = reverse("order_success", args=[self.shop.slug])
 
-    def test_direct_visit_shows_generic_fallback(self):
-        response = self.client.get(self.order_success_url)
+    def _checkout(self, phone="70999888"):
+        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
+            "variant_id": self.variant.pk, "quantity": 1,
+        })
+        return self.client.post(reverse("checkout", args=[self.shop.slug]), {
+            "customer_name": "John Shopper",
+            "customer_phone": phone,
+            "fulfillment_type": "PICKUP",
+            "selected_payment_method": self.payment_method.pk,
+            "currency": "USD",
+        })
+
+    def test_real_order_success_shows_actual_submitted_data(self):
+        self._checkout()
+        order = Order.objects.get()
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Jane Customer")
-
-    def test_real_checkout_flow_shows_actual_submitted_data(self):
-        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
-            "variant_id": self.variant.pk, "quantity": 1,
-        })
-        self.client.post(reverse("checkout", args=[self.shop.slug]), {
-            "customer_name": "John Shopper",
-            "customer_phone": "70999888",
-            "fulfillment_type": "PICKUP",
-            "selected_payment_method": self.payment_method.pk,
-            "currency": "USD",
-        })
-
-        response = self.client.get(self.order_success_url)
-
         self.assertContains(response, "John Shopper")
         self.assertContains(response, "Denim Jacket")
-        self.assertNotContains(response, "Jane Customer")
 
-    def test_preview_banner_present_on_both_paths(self):
-        direct_response = self.client.get(self.order_success_url)
+    def test_unknown_tracking_token_404s(self):
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, uuid.uuid4()])
+        )
 
-        self.assertContains(direct_response, "preview")
+        self.assertEqual(response.status_code, 404)
 
-        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
-            "variant_id": self.variant.pk, "quantity": 1,
-        })
-        self.client.post(reverse("checkout", args=[self.shop.slug]), {
-            "customer_name": "John Shopper",
-            "customer_phone": "70999888",
-            "fulfillment_type": "PICKUP",
-            "selected_payment_method": self.payment_method.pk,
-            "currency": "USD",
-        })
-        real_response = self.client.get(self.order_success_url)
+    def test_order_from_a_different_shop_404s(self):
+        self._checkout()
+        order = Order.objects.get()
 
-        self.assertContains(real_response, "preview")
+        other_owner = User.objects.create_user(
+            "order-success-other-owner@example.com", "testpassword123",
+            full_name="Other Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        other_shop = Shop.objects.create(
+            owner=other_owner, name="Other Shop", slug="other-shop-order-success",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        Subscription.objects.create(
+            shop=other_shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
 
-    def test_direct_visit_does_not_consume_a_real_preview_twice(self):
-        self.client.post(reverse("cart_add", args=[self.shop.slug]), {
-            "variant_id": self.variant.pk, "quantity": 1,
-        })
-        self.client.post(reverse("checkout", args=[self.shop.slug]), {
-            "customer_name": "John Shopper",
-            "customer_phone": "70999888",
-            "fulfillment_type": "PICKUP",
-            "selected_payment_method": self.payment_method.pk,
-            "currency": "USD",
-        })
+        response = self.client.get(
+            reverse("order_success", args=[other_shop.slug, order.tracking_token])
+        )
 
-        first = self.client.get(self.order_success_url)
-        second = self.client.get(self.order_success_url)
-
-        self.assertContains(first, "John Shopper")
-        self.assertContains(second, "Jane Customer")
+        self.assertEqual(response.status_code, 404)
