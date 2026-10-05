@@ -47,6 +47,11 @@ Task documentation is organized by sprint under `docs/tasks/`.
 - [SCRUM-65 — Atomic Order Checkout Service](tasks/sprint-4/SCRUM-65-order-checkout.md)
 - [SCRUM-73 — Create the New Documentation System](tasks/sprint-4/SCRUM-73-documentation-system.md)
 
+#### Sprint 5
+
+- [SCRUM-77 — Order Cancellation Service](tasks/sprint-5/SCRUM-77-order-cancellation.md)
+
+
 ## Documentation structure
 
 ```text
@@ -62,6 +67,7 @@ docs/
     ├── sprint-2/
     ├── sprint-3/
     └── sprint-4/
+    └── sprint-5/
 ```
 
 Shared files such as `requirements.md`, `architecture.md`, `database.md`, and `api.md` describe the current project as a whole.

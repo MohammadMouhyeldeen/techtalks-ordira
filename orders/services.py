@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from customers.models import Customer
 from products.models import ProductVariant, StockMovement
@@ -292,3 +293,81 @@ def create_order(
         )
 
     return order
+
+
+@transaction.atomic
+def cancel_order(order, reason):
+    locked_order = (
+        Order.objects
+        .select_for_update()
+        .get(pk=order.pk)
+    )
+
+    if locked_order.status == Order.Status.CANCELLED:
+        return locked_order
+
+    if locked_order.status == Order.Status.COMPLETED:
+        raise ValidationError(
+            "Completed orders cannot be cancelled."
+        )
+
+    reason = str(reason or "").strip()
+
+    if not reason:
+        raise ValidationError(
+            "A cancellation reason is required."
+        )
+
+    order_items = list(
+        locked_order.items
+        .all()
+        .order_by("pk")
+    )
+
+    variant_ids = sorted(
+        {
+            item.variant_id
+            for item in order_items
+            if item.variant_id is not None
+        }
+    )
+
+    locked_variants = {
+        variant.pk: variant
+        for variant in (
+            ProductVariant.objects
+            .select_for_update(of=("self",))
+            .filter(pk__in=variant_ids)
+            .order_by("pk")
+        )
+    }
+
+    for item in order_items:
+        variant = locked_variants.get(item.variant_id)
+
+        if variant is None:
+            continue
+
+        variant.stock_quantity += item.quantity
+        variant.save(update_fields=["stock_quantity"])
+
+        StockMovement.objects.create(
+            variant=variant,
+            created_by=None,
+            change_qty=item.quantity,
+            reason=StockMovement.Reason.CANCELLATION,
+        )
+
+    locked_order.status = Order.Status.CANCELLED
+    locked_order.cancellation_reason = reason
+    locked_order.stock_restored_at = timezone.now()
+    locked_order.full_clean()
+    locked_order.save(
+        update_fields=[
+            "status",
+            "cancellation_reason",
+            "stock_restored_at",
+        ]
+    )
+
+    return locked_order
