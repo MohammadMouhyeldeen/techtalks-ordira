@@ -471,22 +471,38 @@ class CheckoutViewTests(TestCase):
 
         self.assertContains(response, 'value="PICKUP"')
 
-    def test_valid_post_creates_zero_order_rows_and_redirects(self):
+    def test_valid_post_creates_a_real_order_and_redirects_to_success(self):
         self._add_to_cart()
 
         response = self.client.post(self.checkout_url, self._valid_post_data())
 
-        self.assertRedirects(response, reverse("order_success", args=[self.shop.slug]))
-        self.assertEqual(Order.objects.count(), 0)
-        self.assertEqual(OrderItem.objects.count(), 0)
+        self.assertEqual(Order.objects.count(), 1)
+        self.assertEqual(OrderItem.objects.count(), 1)
+        order = Order.objects.get()
+        self.assertRedirects(
+            response,
+            reverse("order_success", args=[self.shop.slug, order.tracking_token]),
+        )
+        self.assertEqual(order.customer_name_snapshot, "Jane Doe")
 
-    def test_valid_post_leaves_cart_untouched(self):
+    def test_valid_post_clears_the_cart(self):
         self._add_to_cart()
         self.client.post(self.checkout_url, self._valid_post_data())
 
         response = self.client.get(reverse("cart_view", args=[self.shop.slug]))
 
-        self.assertContains(response, "Denim Jacket")
+        self.assertContains(response, "Your cart is empty")
+
+    def test_insufficient_stock_at_submission_rerenders_with_error_and_creates_no_order(self):
+        self._add_to_cart()
+        self.variant.stock_quantity = 0
+        self.variant.save(update_fields=["stock_quantity"])
+
+        response = self.client.post(self.checkout_url, self._valid_post_data())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Not enough stock")
+        self.assertEqual(Order.objects.count(), 0)
 
     def test_missing_zone_and_address_for_delivery_rerenders_with_errors(self):
         self._add_to_cart()

@@ -1,10 +1,10 @@
-from decimal import Decimal, ROUND_HALF_UP
-
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Min
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import redirect, render
 
+from orders.services import create_order
 from shops.decorators import public_shop_required
 
 from . import cart
@@ -79,18 +79,6 @@ def product_detail(request, shop, product_pk):
         "colors": colors,
         "related_products": related_products,
     })
-
-
-def _convert_amount(amount, from_currency, to_currency, rate):
-    """Converts a USD/LBP amount using the shop's own fx rate (LBP per
-    USD) — the same formula orders.services.create_order will use."""
-    if from_currency == to_currency:
-        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if from_currency == "USD":
-        converted = amount * rate
-    else:
-        converted = amount / rate
-    return converted.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 @public_shop_required
@@ -206,59 +194,29 @@ def checkout(request, shop):
     form = CheckoutForm(request.POST or None, shop=shop)
 
     if request.method == "POST" and form.is_valid():
-        currency = form.cleaned_data["currency"]
-        rate = shop.exchange_rate_lbp_per_usd
+        items = [
+            {"variant_id": line["variant"].pk, "quantity": line["quantity"]}
+            for line in lines
+        ]
 
-        preview_items = []
-        items_total = Decimal("0.00")
-        for line in lines:
-            variant = line["variant"]
-            line_total = _convert_amount(
-                line["line_total"], line["currency"], currency, rate
+        try:
+            order = create_order(
+                shop=shop,
+                customer_name=form.cleaned_data["customer_name"],
+                customer_phone=form.cleaned_data["customer_phone"],
+                fulfillment_type=form.cleaned_data["fulfillment_type"],
+                selected_payment_method=form.cleaned_data["selected_payment_method"],
+                items=items,
+                currency=form.cleaned_data["currency"],
+                delivery_zone=form.cleaned_data.get("delivery_zone"),
+                address=form.cleaned_data.get("address", ""),
             )
-            items_total += line_total
-            preview_items.append({
-                "product_name": variant.product.name,
-                "color": variant.color,
-                "size": variant.size,
-                "quantity": line["quantity"],
-                "unit_price": str(
-                    (line_total / line["quantity"]).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                ),
-                "line_total": str(line_total),
-            })
-
-        fulfillment_type = form.cleaned_data["fulfillment_type"]
-        delivery_zone = form.cleaned_data.get("delivery_zone")
-        zone_name = ""
-        delivery_fee = Decimal("0.00")
-        if fulfillment_type == "DELIVERY" and delivery_zone:
-            zone_name = delivery_zone.area_name
-            delivery_fee = _convert_amount(
-                delivery_zone.fee, "USD", currency, rate
-            )
-
-        request.session["checkout_preview"] = {
-            "customer_name": form.cleaned_data["customer_name"],
-            "customer_phone": form.cleaned_data["customer_phone"],
-            "fulfillment_type": fulfillment_type,
-            "zone_name": zone_name,
-            "address": form.cleaned_data.get("address", ""),
-            "payment_method_display": (
-                form.cleaned_data["selected_payment_method"]
-                .get_method_name_display()
-            ),
-            "currency": currency,
-            "items_total": str(items_total),
-            "delivery_fee": str(delivery_fee),
-            "total": str(items_total + delivery_fee),
-            "items": preview_items,
-        }
-        request.session.modified = True
-
-        return redirect("order_success", shop.slug)
+        except ValidationError as exc:
+            for message in exc.messages:
+                form.add_error(None, message)
+        else:
+            cart.clear(request, shop)
+            return redirect("order_success", shop.slug, order.tracking_token)
 
     return render(request, "storefront/checkout.html", {
         "shop": shop,
