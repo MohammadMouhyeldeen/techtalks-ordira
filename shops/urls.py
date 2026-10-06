@@ -8,6 +8,7 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("setup/", views.shop_setup, name="setup"),
     path("settings/", views.shop_settings, name="settings"),
+    path("under-construction/", views.under_construction, name="under-construction"),
 
     path(
         "admin/subscriptions/",
