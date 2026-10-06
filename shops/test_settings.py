@@ -1,10 +1,12 @@
+from datetime import date
+
 from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
 from products.models import Category, Product, ProductVariant
 
-from .models import Shop
+from .models import Shop, Subscription
 
 
 class ShopSettingsViewTests(TestCase):
@@ -273,3 +275,85 @@ class DashboardStatsTests(TestCase):
 
         self.assertNotContains(response, "Warehouse")
         self.assertNotContains(response, "Card")
+
+
+class CatalogLinkCardTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "catalog-link-owner@example.com",
+            "testpassword123",
+            full_name="Catalog Link Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Linkable Shop",
+            slug="linkable-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        self.dashboard_url = reverse("shops:dashboard")
+
+    def test_active_subscription_shows_the_real_catalog_link_and_copy_button(self):
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.dashboard_url)
+
+        self.assertContains(response, "/store/linkable-shop/")
+        self.assertContains(response, 'id="catalogLinkCopyBtn"')
+
+    def test_no_active_subscription_shows_reason_instead_of_the_link(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.dashboard_url)
+
+        self.assertNotContains(response, 'id="catalogLinkCopyBtn"')
+        self.assertContains(response, "Waiting for activation")
+
+    def test_expired_subscription_shows_matching_banner_text(self):
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.EXPIRED, starts_on=date.today(),
+        )
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.dashboard_url)
+
+        self.assertContains(response, "Subscription expired")
+        # Same copy must appear twice: once in the top banner, once in the card.
+        self.assertEqual(
+            response.content.decode().count("Your subscription has expired."), 2
+        )
+
+    def test_never_shows_another_shops_catalog_link(self):
+        other_owner = User.objects.create_user(
+            "catalog-link-other-owner@example.com",
+            "testpassword123",
+            full_name="Other Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        other_shop = Shop.objects.create(
+            owner=other_owner,
+            name="Other Linkable Shop",
+            slug="other-linkable-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        Subscription.objects.create(
+            shop=other_shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertContains(response, "/store/linkable-shop/")
+        self.assertNotContains(response, "/store/other-linkable-shop/")

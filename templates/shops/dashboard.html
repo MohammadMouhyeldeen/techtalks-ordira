@@ -18,27 +18,46 @@
 {% if is_shop_owner and not has_active_subscription %}
 
 <div class="subscription-banner">
-    {% if subscription_status == "EXPIRED" %}
     <div>
-        <strong>Subscription expired</strong>
-        <p>Your subscription has expired. Contact us to renew and keep your shop's catalog live.</p>
+        {% include "components/subscription_reason.html" %}
     </div>
-    {% elif subscription_status == "CANCELLED" %}
-    <div>
-        <strong>Subscription cancelled</strong>
-        <p>Your subscription was cancelled. Contact us if you'd like to reactivate your shop.</p>
-    </div>
-    {% else %}
-    <div>
-        <strong>Waiting for activation</strong>
-        <p>
-            Your shop is set up, but your subscription has not been activated yet.
-            You can continue managing your shop while you wait.
-        </p>
-    </div>
-    {% endif %}
 </div>
 
+{% endif %}
+
+{% if shop %}
+<div class="card settings-section settings-section--catalog-link" style="margin-bottom:24px;">
+    <div class="settings-section__head">
+        <span class="settings-section__icon"><svg width="18" height="18"><use href="#i-store"/></svg></span>
+        <div>
+            <h3 class="settings-section__title">Your catalog link</h3>
+            <p class="settings-section__desc">Share this on Instagram and WhatsApp so customers can browse and order.</p>
+        </div>
+    </div>
+    <div class="settings-section__body">
+        {% if has_active_subscription %}
+        <div class="catalog-link-row">
+            <div class="form-group" style="flex:1;min-width:240px;margin:0;">
+                <input type="text" id="catalogLinkInput"
+                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'public_catalog' shop.slug %}" readonly>
+            </div>
+            <button type="button" class="btn btn-primary" id="catalogLinkCopyBtn">
+                <svg width="16" height="16"><use href="#i-copy"/></svg>
+                Copy
+            </button>
+        </div>
+        {% else %}
+        <div class="catalog-link-unavailable">
+            {% include "components/subscription_reason.html" %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="catalogLinkToast" class="copy-toast" role="status" aria-live="polite">
+    <svg width="18" height="18"><use href="#i-check"/></svg>
+    <span>Link copied</span>
+</div>
 {% endif %}
 
 <div class="card settings-section settings-section--profile" style="margin-bottom:24px;">
@@ -114,6 +133,33 @@
 
             el.textContent = "0";
             requestAnimationFrame(tick);
+        });
+    })();
+
+    (() => {
+        const copyBtn = document.getElementById("catalogLinkCopyBtn");
+        const input = document.getElementById("catalogLinkInput");
+        const toast = document.getElementById("catalogLinkToast");
+        if (!copyBtn || !input) return;
+
+        let toastTimer = null;
+        const showToast = () => {
+            if (!toast) return;
+            toast.classList.add("is-visible");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2200);
+        };
+
+        copyBtn.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(input.value);
+            } catch (err) {
+                input.removeAttribute("readonly");
+                input.select();
+                document.execCommand("copy");
+                input.setAttribute("readonly", "readonly");
+            }
+            showToast();
         });
     })();
 </script>

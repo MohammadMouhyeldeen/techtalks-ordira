@@ -1,0 +1,19 @@
+<!--
+  Shared "why isn't my subscription active" copy. Expects `subscription_status`
+  in context ("EXPIRED" / "CANCELLED" / anything else = not yet activated).
+  Used by the dashboard's subscription banner and the catalog-link card, so
+  the two can never say something different for the same status.
+-->
+{% if subscription_status == "EXPIRED" %}
+    <strong>Subscription expired</strong>
+    <p>Your subscription has expired. Contact us to renew and keep your shop's catalog live.</p>
+{% elif subscription_status == "CANCELLED" %}
+    <strong>Subscription cancelled</strong>
+    <p>Your subscription was cancelled. Contact us if you'd like to reactivate your shop.</p>
+{% else %}
+    <strong>Waiting for activation</strong>
+    <p>
+        Your shop is set up, but your subscription has not been activated yet.
+        You can continue managing your shop while you wait.
+    </p>
+{% endif %}
