@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ order.order_number }} | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'orders/css/orders.css' %}?v=2">
+{% endblock %}
+
+{% block content %}
+
+<div class="orders-page">
+    <a
+        href="{% url 'orders:order-list' shop_pk=shop.pk %}"
+        class="order-back-link"
+    >
+        &larr; Back to orders
+    </a>
+
+    <div class="order-detail-header">
+        <div>
+            <p class="order-detail-label">Order</p>
+            <h1>{{ order.order_number }}</h1>
+            <p>
+                Placed on {{ order.created_at|date:"M d, Y H:i" }}
+            </p>
+        </div>
+
+        <span class="order-status order-status-{{ order.status|lower }}">
+            {{ order.get_status_display }}
+        </span>
+    </div>
+
+    <div class="order-information-grid">
+        <section class="order-card">
+            <h2>Customer information</h2>
+
+            <dl class="order-details-list">
+                <div>
+                    <dt>Name</dt>
+                    <dd>{{ order.customer_name_snapshot }}</dd>
+                </div>
+
+                <div>
+                    <dt>Phone</dt>
+                    <dd>{{ order.customer_phone_snapshot }}</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="order-card">
+            <h2>Fulfillment</h2>
+
+            <dl class="order-details-list">
+                <div>
+                    <dt>Type</dt>
+                    <dd>{{ order.get_fulfillment_type_display }}</dd>
+                </div>
+
+                {% if order.fulfillment_type == "DELIVERY" %}
+                    <div>
+                        <dt>Delivery zone</dt>
+                        <dd>{{ order.zone_name_snapshot }}</dd>
+                    </div>
+
+                    <div>
+                        <dt>Address</dt>
+                        <dd>{{ order.address_snapshot }}</dd>
+                    </div>
+
+                    {% if order.landmark_snapshot %}
+                        <div>
+                            <dt>Landmark</dt>
+                            <dd>{{ order.landmark_snapshot }}</dd>
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </dl>
+        </section>
+
+        <section class="order-card">
+            <h2>Payment</h2>
+
+            <dl class="order-details-list">
+                <div>
+                    <dt>Method</dt>
+                    <dd>
+                        {{ order.selected_payment_method.get_method_name_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>Currency</dt>
+                    <dd>{{ order.currency }}</dd>
+                </div>
+            </dl>
+        </section>
+    </div>
+
+    {% if order.notes_snapshot %}
+        <section class="order-card order-notes">
+            <h2>Customer notes</h2>
+            <p>{{ order.notes_snapshot }}</p>
+        </section>
+    {% endif %}
+
+    <section class="order-card">
+        <h2>Order items</h2>
+
+        <div class="orders-table-wrapper">
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Color</th>
+                        <th>Size</th>
+                        <th>Unit price</th>
+                        <th>Quantity</th>
+                        <th>Line total</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for item in order.items.all %}
+                        <tr>
+                            <td>{{ item.product_name_snapshot }}</td>
+                            <td>{{ item.color_snapshot }}</td>
+                            <td>{{ item.size_snapshot }}</td>
+                            <td>
+                                {{ item.unit_price_snapshot }}
+                                {{ order.currency }}
+                            </td>
+                            <td>{{ item.quantity }}</td>
+                            <td>
+                                {{ item.line_total }}
+                                {{ order.currency }}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6">
+                                No items are available for this order.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="order-card order-summary">
+        <h2>Order summary</h2>
+
+        <div class="order-summary-row">
+            <span>Subtotal</span>
+            <strong>
+                {{ order.items_total }} {{ order.currency }}
+            </strong>
+        </div>
+
+        <div class="order-summary-row">
+            <span>Delivery fee</span>
+            <strong>
+                {{ order.delivery_fee_snapshot }}
+                {{ order.currency }}
+            </strong>
+        </div>
+
+        <div class="order-summary-row order-summary-total">
+            <span>Total</span>
+            <strong>{{ order.total }} {{ order.currency }}</strong>
+        </div>
+    </section>
+
+    {% if order.status == "CANCELLED" %}
+        <section class="order-card order-cancellation">
+            <h2>Cancellation reason</h2>
+            <p>{{ order.cancellation_reason }}</p>
+        </section>
+    {% endif %}
+</div>
+
+{% endblock %}

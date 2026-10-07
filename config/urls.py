@@ -50,6 +50,7 @@ urlpatterns = [
         name="order_success",
     ),
     path("products/", include("products.urls")),
+    path("orders/", include("orders.urls")),
 ]
 
 if settings.DEBUG:

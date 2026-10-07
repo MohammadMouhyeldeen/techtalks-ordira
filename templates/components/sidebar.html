@@ -104,15 +104,33 @@
             Sales
         </div>
 
-        <span class="sidebar-link sidebar-link-disabled" aria-disabled="true" title="Orders — coming soon">
-
-            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-cart"/></svg></span>
-
-            <span>Orders</span>
-
-            <span class="sidebar-badge">Soon</span>
-
+       {% if shop %}
+    <a
+        href="{% url 'orders:order-list' shop_pk=shop.pk %}"
+        class="sidebar-link"
+    >
+        <span class="sidebar-icon">
+            <svg width="18" height="18">
+                <use href="#i-cart"/>
+            </svg>
         </span>
+
+        <span>Orders</span>
+    </a>
+{% else %}
+    <span
+        class="sidebar-link sidebar-link-disabled"
+        aria-disabled="true"
+    >
+        <span class="sidebar-icon">
+            <svg width="18" height="18">
+                <use href="#i-cart"/>
+            </svg>
+        </span>
+
+        <span>Orders</span>
+    </span>
+{% endif %}
 
 
         <a href="#"
