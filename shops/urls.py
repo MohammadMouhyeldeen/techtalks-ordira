@@ -44,4 +44,11 @@ urlpatterns = [
         views.delivery_zone_delete,
         name="delivery-zone-delete",
     ),
+    path(
+        "shops/<int:shop_pk>/payment-methods/",
+        views.payment_method_settings,
+        name="payment-method-settings",
+    ),
+
+
 ]

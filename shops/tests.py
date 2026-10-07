@@ -150,6 +150,40 @@ class ShopSetupTests(TestCase):
             ).exists()
         )
 
+    def test_new_shop_starts_with_cash_enabled(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "Cash Default Shop",
+                "slug": "cash-default-shop",
+                "whatsapp": "",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("shops:dashboard"),
+        )
+
+        shop = Shop.objects.get(slug="cash-default-shop")
+
+        cash_method = ShopPaymentMethod.objects.get(
+            shop=shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+        )
+
+        self.assertTrue(cash_method.enabled)
+
+        self.assertEqual(
+            ShopPaymentMethod.objects.filter(shop=shop).count(),
+            1,
+        )
+
 
 class ShopSetupReviewTests(TestCase):
     def setUp(self):
@@ -529,6 +563,188 @@ class ShopSetupReviewTests(TestCase):
                 slug="large-logo-shop"
             ).exists()
         )
+
+
+class PaymentMethodSettingsTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "payment-owner@example.com",
+            "testpassword123",
+            full_name="Payment Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.other_owner = User.objects.create_user(
+            "payment-other-owner@example.com",
+            "testpassword123",
+            full_name="Other Payment Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.admin = User.objects.create_user(
+            "payment-admin@example.com",
+            "testpassword123",
+            full_name="Payment Admin",
+            status=User.Status.ACTIVE,
+            role=User.Role.ADMIN,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Payment Shop",
+            slug="payment-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        self.other_shop = Shop.objects.create(
+            owner=self.other_owner,
+            name="Other Payment Shop",
+            slug="other-payment-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        ShopPaymentMethod.objects.create(
+            shop=self.shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            enabled=True,
+        )
+        ShopPaymentMethod.objects.create(
+            shop=self.shop,
+            method_name=ShopPaymentMethod.MethodName.WHISH,
+            enabled=False,
+        )
+        ShopPaymentMethod.objects.create(
+            shop=self.shop,
+            method_name=ShopPaymentMethod.MethodName.OMT,
+            enabled=False,
+        )
+        ShopPaymentMethod.objects.create(
+            shop=self.shop,
+            method_name=ShopPaymentMethod.MethodName.BANK_TRANSFER,
+            enabled=False,
+        )
+
+        ShopPaymentMethod.objects.create(
+            shop=self.other_shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            enabled=True,
+        )
+        ShopPaymentMethod.objects.create(
+            shop=self.other_shop,
+            method_name=ShopPaymentMethod.MethodName.WHISH,
+            enabled=True,
+        )
+
+        self.url = reverse(
+            "shops:payment-method-settings",
+            kwargs={"shop_pk": self.shop.pk},
+        )
+
+    def test_owner_can_open_payment_method_settings(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "shops/payment_method_settings.html",
+        )
+        self.assertContains(response, "Cash")
+        self.assertContains(response, "Whish")
+        self.assertContains(response, "OMT")
+        self.assertContains(response, "Bank Transfer")
+
+    def test_owner_can_enable_and_disable_payment_methods(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.url,
+            {
+                "cash": "on",
+                "omt": "on",
+            },
+        )
+
+        self.assertRedirects(response, self.url)
+
+        methods = {
+            method.method_name: method.enabled
+            for method in ShopPaymentMethod.objects.filter(shop=self.shop)
+        }
+
+        self.assertTrue(methods[ShopPaymentMethod.MethodName.CASH])
+        self.assertFalse(methods[ShopPaymentMethod.MethodName.WHISH])
+        self.assertTrue(methods[ShopPaymentMethod.MethodName.OMT])
+        self.assertFalse(methods[ShopPaymentMethod.MethodName.BANK_TRANSFER])
+
+    def test_another_shop_is_not_accessible(self):
+        self.client.force_login(self.owner)
+
+        other_url = reverse(
+            "shops:payment-method-settings",
+            kwargs={"shop_pk": self.other_shop.pk},
+        )
+
+        response = self.client.get(other_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_another_shop_methods_cannot_be_edited(self):
+        self.client.force_login(self.owner)
+
+        other_url = reverse(
+            "shops:payment-method-settings",
+            kwargs={"shop_pk": self.other_shop.pk},
+        )
+
+        response = self.client.post(
+            other_url,
+            {
+                "cash": "",
+                "whish": "",
+                "omt": "on",
+                "bank_transfer": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.assertTrue(
+            ShopPaymentMethod.objects.get(
+                shop=self.other_shop,
+                method_name=ShopPaymentMethod.MethodName.CASH,
+            ).enabled
+        )
+
+        self.assertTrue(
+            ShopPaymentMethod.objects.get(
+                shop=self.other_shop,
+                method_name=ShopPaymentMethod.MethodName.WHISH,
+            ).enabled
+        )
+
+    def test_anonymous_user_is_redirected_to_login(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("accounts:login"),
+            response.url,
+        )
+
+    def test_non_owner_cannot_access_payment_method_settings(self):
+        self.client.force_login(self.other_owner)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_cannot_access_payment_method_settings(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
 
 
 class SidebarCatalogSectionTests(TestCase):

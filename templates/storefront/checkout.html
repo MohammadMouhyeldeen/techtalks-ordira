@@ -74,15 +74,24 @@
 
       <div class="checkout-section checkout-section--payment" style="animation-delay:200ms">
         <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-wallet"/></svg></span>Payment</h2>
-        <div class="form-field">
-          <label for="{{ form.selected_payment_method.id_for_label }}">{{ form.selected_payment_method.label }}</label>
-          <div class="select-wrap" data-icon="i-wallet">
-            {{ form.selected_payment_method }}
+        {% if form.payment_methods_available %}
+          <div class="form-field">
+            <label for="{{ form.selected_payment_method.id_for_label }}">{{ form.selected_payment_method.label }}</label>
+            <div class="select-wrap" data-icon="i-wallet">
+              {{ form.selected_payment_method }}
+            </div>
+            {% if form.selected_payment_method.errors %}
+              <ul class="field-errors">{% for e in form.selected_payment_method.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% endif %}
           </div>
-          {% if form.selected_payment_method.errors %}
-            <ul class="field-errors">{% for e in form.selected_payment_method.errors %}<li>{{ e }}</li>{% endfor %}</ul>
-          {% endif %}
-        </div>
+        {% else %}
+          <div class="form-field">
+            <div class="form-errors">
+              No payment methods are currently available for this shop.
+              Please contact the shop owner.
+            </div>
+          </div>
+        {% endif %}
         <div class="form-field">
           <label for="{{ form.currency.id_for_label }}">Currency</label>
           <div class="select-wrap">
