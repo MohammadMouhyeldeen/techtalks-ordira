@@ -199,11 +199,8 @@ class DeliveryZoneForm(forms.ModelForm):
         labels = {
             "fee": "Fee (USD)",
         }
-
         help_texts = {
-            "fee": ("Enter the delivery fee in USD."
-            "The create_order flow assumes the delivery zone fee is in USD."
-            ),
+            "fee": "Enter the fee in USD. If a customer checks out in LBP, it's converted automatically at your shop's exchange rate.",
         }
 
     def __init__(self, *args, shop=None, **kwargs):

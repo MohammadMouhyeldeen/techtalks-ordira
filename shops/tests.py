@@ -1793,5 +1793,6 @@ class DeliveryZoneTests(TestCase):
         self.assertContains(response, "Fee (USD)")
         self.assertContains(
             response,
-            "The create_order flow assumes the delivery zone fee is in USD.",
+            "Enter the fee in USD. If a customer checks out in LBP, "
+            "it's converted automatically at your shop's exchange rate.",
         )
