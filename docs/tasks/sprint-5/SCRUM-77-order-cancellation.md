@@ -3,7 +3,7 @@
 **Owner:** Reem Saijary
 **Sprint:** Sprint 5
 **Date completed:** October 5, 2026
-**Status:** Ready for review
+**Status:** Merged
 **Related ticket:** SCRUM-77
 **Branch:** `feature/SCRUM-77-order-cancellation`
 **Target branch:** `develop`
