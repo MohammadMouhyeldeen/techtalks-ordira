@@ -67,13 +67,6 @@
                         <dt>Address</dt>
                         <dd>{{ order.address_snapshot }}</dd>
                     </div>
-
-                    {% if order.landmark_snapshot %}
-                        <div>
-                            <dt>Landmark</dt>
-                            <dd>{{ order.landmark_snapshot }}</dd>
-                        </div>
-                    {% endif %}
                 {% endif %}
             </dl>
         </section>
@@ -96,17 +89,8 @@
             </dl>
         </section>
     </div>
-
-    {% if order.notes_snapshot %}
-        <section class="order-card order-notes">
-            <h2>Customer notes</h2>
-            <p>{{ order.notes_snapshot }}</p>
-        </section>
-    {% endif %}
-
     <section class="order-card">
         <h2>Order items</h2>
-
         <div class="orders-table-wrapper">
             <table class="orders-table">
                 <thead>
