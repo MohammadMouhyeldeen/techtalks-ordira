@@ -19,7 +19,7 @@ from products.models import (
 from shops.models import DeliveryZone, Shop, ShopPaymentMethod, Subscription
 
 from .models import Order, OrderItem
-from .services import create_order
+from .services import cancel_order, create_order
 
 
 User = get_user_model()
@@ -595,3 +595,156 @@ class OrderSuccessViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+
+class OrderTrackingViewTests(TestCase):
+    """The persistent "where's my order" page — same lookup rules as
+    order_success (tracking_token + shop, never pk), plus the status/
+    cancellation-reason display that's specific to this page."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="tracking-owner@example.com", password="testpass123",
+            full_name="Tracking Owner", status=User.Status.ACTIVE,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner, name="Tracking Shop", slug="tracking-shop",
+            pickup_available=True, exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        self.category = Category.objects.create(shop=self.shop, name="Clothing")
+        self.product = Product.objects.create(
+            shop=self.shop, category=self.category, name="Tracked Hoodie",
+        )
+        self.variant = ProductVariant.objects.create(
+            product=self.product, color="Grey", size="L",
+            unit_price=Decimal("25.00"), currency=ProductVariant.Currency.USD,
+            stock_quantity=5,
+        )
+        self.delivery_zone = DeliveryZone.objects.create(
+            shop=self.shop, area_name="Jounieh", fee=Decimal("4.00"),
+        )
+        self.payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
+        )
+
+    def _place_order(self, **overrides):
+        data = {
+            "shop": self.shop,
+            "customer_name": "Track Customer",
+            "customer_phone": "70555000",
+            "fulfillment_type": Order.FulfillmentType.DELIVERY,
+            "selected_payment_method": self.payment_method,
+            "items": [{"variant_id": self.variant.pk, "quantity": 1}],
+            "currency": Order.Currency.USD,
+            "delivery_zone": self.delivery_zone,
+            "address": "Jounieh Highway",
+        }
+        data.update(overrides)
+        return create_order(**data)
+
+    def test_valid_token_shows_the_real_order(self):
+        order = self._place_order()
+
+        response = self.client.get(
+            reverse("track_order", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.order_number)
+        self.assertContains(response, "Tracked Hoodie")
+        self.assertContains(response, "Track Customer")
+
+    def test_wrong_token_404s(self):
+        self._place_order()
+
+        response = self.client.get(
+            reverse("track_order", args=[self.shop.slug, uuid.uuid4()])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_token_under_another_shops_slug_404s(self):
+        order = self._place_order()
+
+        other_owner = User.objects.create_user(
+            email="tracking-other-owner@example.com", password="testpass123",
+            full_name="Other Tracking Owner", status=User.Status.ACTIVE,
+        )
+        other_shop = Shop.objects.create(
+            owner=other_owner, name="Other Tracking Shop", slug="other-tracking-shop",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+        Subscription.objects.create(
+            shop=other_shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+
+        response = self.client.get(
+            reverse("track_order", args=[other_shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_cancelled_order_shows_its_reason(self):
+        order = self._place_order()
+        cancel_order(order, "Customer requested a different size.")
+
+        response = self.client.get(
+            reverse("track_order", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertContains(response, "Cancelled")
+        self.assertContains(response, "Customer requested a different size.")
+
+    def test_deactivated_variant_still_renders_via_snapshot(self):
+        # The variant can't actually be deleted while this OrderItem
+        # references it (on_delete=PROTECT) — deactivating it is the
+        # real-world equivalent a merchant can trigger, and the page
+        # must still render correctly from the item's own snapshot.
+        order = self._place_order()
+        self.variant.is_active = False
+        self.variant.save(update_fields=["is_active"])
+
+        response = self.client.get(
+            reverse("track_order", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tracked Hoodie")
+
+    def test_deleted_delivery_zone_still_renders_via_snapshot(self):
+        order = self._place_order()
+        self.delivery_zone.delete()
+
+        response = self.client.get(
+            reverse("track_order", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Jounieh")
+        self.assertContains(response, "Jounieh Highway")
+
+    def test_no_payment_recorded_yet_shows_gracefully(self):
+        order = self._place_order()
+
+        response = self.client.get(
+            reverse("track_order", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertContains(response, "Not recorded yet")
+
+    def test_linked_from_order_success_page(self):
+        order = self._place_order()
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertContains(
+            response,
+            reverse("track_order", args=[self.shop.slug, order.tracking_token]),
+        )

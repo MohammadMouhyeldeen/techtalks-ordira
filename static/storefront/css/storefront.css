@@ -366,11 +366,11 @@
   from{ opacity:0;transform:translateY(18px); }
   to{ opacity:1;transform:translateY(0); }
 }
-.cart-line, .checkout-section, .cart-summary, .order-success-hero{
+.cart-line, .checkout-section, .cart-summary, .order-success-hero, .order-tracking-hero{
   animation:fade-up-in .55s var(--ease) both;
 }
 @media (prefers-reduced-motion: reduce){
-  .cart-line, .checkout-section, .cart-summary, .order-success-hero,
+  .cart-line, .checkout-section, .cart-summary, .order-success-hero, .order-tracking-hero,
   .order-success-hero__icon, .order-success-hero__icon::before, .order-success-hero__icon::after,
   .order-success-hero__icon svg path{
     animation:none!important;
@@ -645,4 +645,30 @@ select.form-input:focus{ outline:none;box-shadow:0 0 0 4px var(--primary-100); }
 .order-success-hero h1{ font-size:1.5rem; }
 .order-success-hero p{ color:var(--ink-500);font-size:.92rem; }
 .order-success-details .checkout-section p{ font-size:.9rem;color:var(--ink-700);margin-bottom:4px; }
-.order-success-page__cta{ display:flex;width:fit-content;margin:32px auto 0; }
+.order-success-page__actions{
+  display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:32px auto 0;
+}
+
+/* ---- order tracking ---- */
+.order-tracking-hero{ text-align:center;padding:16px 0 32px;display:flex;flex-direction:column;align-items:center;gap:10px; }
+.order-tracking-hero h1{ font-size:1.5rem; }
+.order-tracking-hero p{ color:var(--ink-500);font-size:.92rem; }
+
+.status-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:.45rem 1.1rem;border-radius:var(--radius-full);
+  font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+}
+.status-pill--new{ background:var(--primary-100);color:var(--primary-700); }
+.status-pill--preparing,
+.status-pill--handed_to_delivery{ background:var(--amber-bg);color:var(--amber); }
+.status-pill--completed{ background:var(--success-bg);color:var(--success); }
+.status-pill--cancelled{ background:var(--accent-100);color:var(--accent-600); }
+
+.cancellation-box{
+  margin-top:6px;max-width:440px;text-align:left;
+  background:var(--accent-100);color:var(--accent-600);
+  border-radius:var(--radius-md);padding:.9rem 1.1rem;
+  font-size:.88rem;line-height:1.5;
+}
+.cancellation-box strong{ display:block;margin-bottom:4px; }

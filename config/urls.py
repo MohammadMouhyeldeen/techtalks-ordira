@@ -49,6 +49,11 @@ urlpatterns = [
         order_views.order_success,
         name="order_success",
     ),
+    path(
+        "store/<slug:shop_slug>/track/<uuid:tracking_token>/",
+        order_views.track_order,
+        name="track_order",
+    ),
     path("products/", include("products.urls")),
     path("orders/", include("orders.urls")),
 ]
