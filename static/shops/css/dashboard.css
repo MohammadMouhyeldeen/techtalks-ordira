@@ -17,3 +17,70 @@
     font-size: 13px;
     line-height: 1.6;
 }
+
+.catalog-link-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.catalog-link-row .btn {
+    flex-shrink: 0;
+}
+
+.catalog-link-unavailable p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.catalog-link-unavailable strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.copy-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    transform: translate(-50%, 16px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--primary-light), var(--accent-light));
+    color: var(--primary-dark);
+    padding: .95rem 1.5rem;
+    border-radius: var(--radius-full);
+    font-size: 14.5px;
+    font-weight: 700;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s var(--ease), transform .3s var(--ease);
+    z-index: 500;
+}
+
+.copy-toast svg {
+    color: var(--success);
+    stroke-width: 2.6;
+}
+
+.copy-toast.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    pointer-events: auto;
+}
+
+@media (max-width: 600px) {
+    .catalog-link-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .catalog-link-row .btn {
+        justify-content: center;
+    }
+}
