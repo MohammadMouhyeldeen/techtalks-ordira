@@ -1683,7 +1683,7 @@ class DeliveryZoneTests(TestCase):
             selected_payment_method=payment_method,
             order_number="ORD-DELIVERY-ZONE-1",
             fulfillment_type="DELIVERY",
-            status="PENDING",
+            status="NEW",
             customer_name_snapshot=customer.full_name,
             customer_phone_snapshot=customer.phone_number,
             zone_name_snapshot=self.zone.area_name,
@@ -1780,3 +1780,19 @@ class DeliveryZoneTests(TestCase):
         )
 
         self.assertEqual(zone.area_name, "Downtown")
+
+    def test_delivery_zone_fee_is_labeled_as_usd(self):
+        response = self.client.get(
+            reverse(
+                "shops:delivery-zone-create",
+                kwargs={"shop_pk": self.shop.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fee (USD)")
+        self.assertContains(
+            response,
+            "Enter the fee in USD. If a customer checks out in LBP, "
+            "it's converted automatically at your shop's exchange rate.",
+        )
