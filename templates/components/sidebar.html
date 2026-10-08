@@ -115,14 +115,16 @@
         </span>
 
 
-        <a href="#"
-           class="sidebar-link">
+       {% if shop %}
+        <a href="{% url 'shops:payment-method-settings' shop_pk=shop.pk %}"
+           class="sidebar-link{% if request.resolver_match.view_name == 'shops:payment-method-settings' %} active{% endif %}">
 
             <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-wallet"/></svg></span>
 
             <span>Payment Methods</span>
 
         </a>
+        {% endif %}
     </div>
 
     <!-- =========================

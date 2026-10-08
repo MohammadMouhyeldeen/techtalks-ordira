@@ -165,6 +165,7 @@ class CheckoutForm(forms.Form):
     def __init__(self, *args, shop=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.shop = shop
+        self.payment_methods_available = False
 
         if shop is None:
             return
@@ -172,13 +173,14 @@ class CheckoutForm(forms.Form):
         self.fields["delivery_zone"].queryset = shop.delivery_zones.filter(
             is_active=True
         )
-        self.fields["selected_payment_method"].queryset = (
-            shop.payment_methods.filter(enabled=True)
-        )
+        payment_methods = shop.payment_methods.filter(enabled=True)
+        self.fields["selected_payment_method"].queryset = payment_methods
         self.fields["selected_payment_method"].label_from_instance = (
             lambda obj: obj.get_method_name_display()
         )
         self.fields["selected_payment_method"].empty_label = None
+        self.payment_methods_available = payment_methods.exists()
+
         self.fields["delivery_zone"].label_from_instance = (
             lambda obj: f"{obj.area_name} (+{obj.fee})"
         )
@@ -189,14 +191,26 @@ class CheckoutForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
+        if not self.payment_methods_available:
+            self.add_error(
+                None,
+                "No payment methods are currently available for this shop. "
+                "Please contact the shop owner.",
+            )
+            return cleaned_data
 
         fulfillment_type = cleaned_data.get("fulfillment_type")
         if fulfillment_type == "DELIVERY":
             if not cleaned_data.get("delivery_zone"):
-                self.add_error("delivery_zone", "Select a delivery area.")
+                self.add_error(
+                    "delivery_zone",
+                    "Select a delivery area.",
+                )
             if not cleaned_data.get("address"):
-                self.add_error("address", "Enter a delivery address.")
-
+                self.add_error(
+                    "address",
+                    "Enter a delivery address.",
+                )
         return cleaned_data
 
 

@@ -514,3 +514,37 @@ class CheckoutViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Select a delivery area.")
         self.assertContains(response, "Enter a delivery address.")
+
+    def test_checkout_shows_message_when_no_payment_methods_are_enabled(self):
+        self.shop.payment_methods.all().delete()
+        self._add_to_cart()
+
+        response = self.client.get(self.checkout_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "No payment methods are currently available for this shop.",
+        )
+        self.assertNotContains(response, "Cash")
+        self.assertNotContains(response, "Whish")
+        self.assertNotContains(response, "OMT")
+        self.assertNotContains(response, "Bank Transfer")
+
+    def test_checkout_rejects_order_when_no_payment_methods_are_enabled(self):
+        self.shop.payment_methods.all().delete()
+        self._add_to_cart()
+
+        response = self.client.post(
+            self.checkout_url,
+            self._valid_post_data(
+                selected_payment_method="",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "No payment methods are currently available for this shop.",
+        )
+        self.assertEqual(Order.objects.count(), 0)

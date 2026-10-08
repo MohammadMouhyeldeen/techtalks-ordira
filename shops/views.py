@@ -10,12 +10,13 @@ from orders.models import Order
 
 from .forms import (
     DeliveryZoneForm,
+    PaymentMethodSettingsForm,
     ShopSettingsForm,
     ShopSetupForm,
     SubscriptionForm,
 )
 from .helpers import get_dashboard_stats, is_catalog_public, subscription_status
-from .models import DeliveryZone, Shop, Subscription
+from .models import DeliveryZone, Shop, Subscription, ShopPaymentMethod
 
 
 
@@ -41,6 +42,37 @@ def shop_settings(request):
     return render(request, "shops/settings.html", {"form": form, "shop": shop})
 
 
+
+@login_required
+def payment_method_settings(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    form = PaymentMethodSettingsForm(
+        request.POST or None,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(
+            request,
+            "Payment methods updated.",
+        )
+        return redirect(
+            "shops:payment-method-settings",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "shops/payment_method_settings.html",
+        {
+            "shop": shop,
+            "form": form,
+        },
+    )
+
+
 @login_required
 def shop_setup(request):
     if request.user.role != User.Role.SHOP_OWNER:
@@ -55,7 +87,13 @@ def shop_setup(request):
         if form.is_valid():
             shop = form.save(commit=False)
             shop.owner = request.user
-            shop.save()
+            with transaction.atomic():
+                shop.save()
+                ShopPaymentMethod.objects.create(
+                    shop=shop,
+                    method_name=ShopPaymentMethod.MethodName.CASH,
+                    enabled=True,
+                )
 
             return redirect("shops:dashboard")
     else:
