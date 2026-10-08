@@ -166,6 +166,19 @@ class PaymentMethodSettingsForm(forms.Form):
                 method_value == ShopPaymentMethod.MethodName.CASH,
             )
 
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not any(
+            cleaned_data.get(method_value.lower())
+            for method_value, _ in self.METHOD_CHOICES
+        ):
+            raise forms.ValidationError(
+                "At least one payment method must remain enabled."
+            )
+
+        return cleaned_data
+
     def save(self):
         if self.shop is None:
             raise ValueError("A shop is required to save payment methods.")

@@ -85,12 +85,14 @@
             {% endif %}
           </div>
         {% else %}
-          <div class="form-field">
-            <div class="form-errors">
-              No payment methods are currently available for this shop.
-              Please contact the shop owner.
+          {% if not form.non_field_errors %}
+            <div class="form-field">
+              <div class="form-errors">
+                No payment methods are currently available for this shop.
+                Please contact the shop owner.
+              </div>
             </div>
-          </div>
+          {% endif %}
         {% endif %}
         <div class="form-field">
           <label for="{{ form.currency.id_for_label }}">Currency</label>

@@ -746,6 +746,28 @@ class PaymentMethodSettingsTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_owner_cannot_disable_all_payment_methods(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            self.url,
+            {
+                "cash": "",
+                "whish": "",
+                "omt": "",
+                "bank_transfer": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "At least one payment method must remain enabled.",
+        )
+        cash= ShopPaymentMethod.objects.get(
+            shop=self.shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+        )
+        self.assertTrue(cash.enabled)
+
 
 class SidebarCatalogSectionTests(TestCase):
     """Explicit tests for the {% if shop %} guard on the Catalog sidebar
