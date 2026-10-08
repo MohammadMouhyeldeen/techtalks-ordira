@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import connection
+from django.template.loader import render_to_string
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -20,6 +21,7 @@ from shops.models import DeliveryZone, Shop, ShopPaymentMethod, Subscription
 
 from .models import Order, OrderItem
 from .services import cancel_order, create_order
+from .views import _order_context, _payment_method_display
 
 
 User = get_user_model()
@@ -596,6 +598,22 @@ class OrderSuccessViewTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_success_page_shows_real_payment_method_name(self):
+        self._checkout()
+        order = Order.objects.get()
+
+        self.assertEqual(_payment_method_display(order), "Cash")
+
+    def test_success_page_falls_back_when_payment_method_missing(self):
+        # selected_payment_method is PROTECT + NOT NULL today, so a shop can
+        # never actually delete one out from under a placed order — this
+        # mutates an in-memory (unsaved) copy to exercise the guard directly.
+        self._checkout()
+        order = Order.objects.get()
+        order.selected_payment_method = None
+
+        self.assertEqual(_payment_method_display(order), "Not available")
+
 
 class OrderTrackingViewTests(TestCase):
     """The persistent "where's my order" page — same lookup rules as
@@ -748,3 +766,18 @@ class OrderTrackingViewTests(TestCase):
             response,
             reverse("track_order", args=[self.shop.slug, order.tracking_token]),
         )
+
+    def test_payment_method_missing_shows_not_available(self):
+        # Same PROTECT + NOT NULL caveat as above — the DB would reject a
+        # real NULL write, so this renders the template directly against
+        # an in-memory (unsaved) mutation instead of going through a live
+        # GET, which would just re-fetch the real payment method from the DB.
+        order = self._place_order()
+        order.selected_payment_method = None
+
+        html = render_to_string(
+            "storefront/order_tracking.html",
+            {"shop": self.shop, "order": order, **_order_context(order)},
+        )
+
+        self.assertIn("Not available", html)

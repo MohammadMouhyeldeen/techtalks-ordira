@@ -78,7 +78,11 @@
                 <div>
                     <dt>Method</dt>
                     <dd>
-                        {{ order.selected_payment_method.get_method_name_display }}
+                        {% if order.selected_payment_method %}
+                            {{ order.selected_payment_method.get_method_name_display }}
+                        {% else %}
+                            Not available
+                        {% endif %}
                     </dd>
                 </div>
 

@@ -7,6 +7,17 @@ from shops.models import Shop
 from .models import Order
 
 
+def _payment_method_display(order):
+    """selected_payment_method is PROTECT + NOT NULL today, so a shop can't
+    actually delete one out from under a placed order — but the guard is
+    cheap insurance against that ever changing, and against a merchant
+    somehow ending up with an order that has none."""
+    method = getattr(order, "selected_payment_method", None)
+    if method is None:
+        return "Not available"
+    return method.get_method_name_display()
+
+
 def _order_context(order):
     """Shared context for both the one-time success page and the
     persistent tracking page — same order, same shape, so they can
@@ -20,7 +31,7 @@ def _order_context(order):
     what getattr's default argument is for."""
     return {
         "order_items": order.items.select_related("variant"),
-        "payment_method_display": order.selected_payment_method.get_method_name_display(),
+        "payment_method_display": _payment_method_display(order),
         "payment": getattr(order, "payment", None),
     }
 
