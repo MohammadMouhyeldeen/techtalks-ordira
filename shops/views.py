@@ -40,7 +40,9 @@ def shop_settings(request):
         form = ShopSettingsForm(instance=shop)
 
     return render(request, "shops/settings.html", {"form": form, "shop": shop})
-
+@login_required
+def under_construction(request):
+    return render(request, "under_construction.html")
 
 
 @login_required
