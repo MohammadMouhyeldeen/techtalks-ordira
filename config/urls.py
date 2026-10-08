@@ -56,6 +56,7 @@ urlpatterns = [
     ),
     path("products/", include("products.urls")),
     path("orders/", include("orders.urls")),
+    path("", include("payments.urls")),
 ]
 
 if settings.DEBUG:

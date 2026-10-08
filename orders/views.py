@@ -4,6 +4,8 @@ from django.shortcuts import get_object_or_404, render
 from shops.decorators import public_shop_required
 from shops.models import Shop
 
+from payments.forms import RecordPaymentForm
+
 from .models import Order
 
 
@@ -122,11 +124,27 @@ def merchant_order_detail(request, shop_pk, order_pk):
             "customer",
             "delivery_zone",
             "selected_payment_method",
+            "payment",
+            "payment__method",
         )
         .prefetch_related("items"),
         pk=order_pk,
         shop=shop,
     )
+
+    payment = getattr(order, "payment", None)
+
+    payment_form = None
+
+    if payment is None and order.status != Order.Status.CANCELLED:
+        payment_form = RecordPaymentForm(
+            shop=shop,
+            initial={
+                "method": order.selected_payment_method,
+                "amount": order.total,
+                "currency": order.currency,
+            },
+        )
 
     return render(
         request,
@@ -134,5 +152,7 @@ def merchant_order_detail(request, shop_pk, order_pk):
         {
             "shop": shop,
             "order": order,
+            "payment": payment,
+            "payment_form": payment_form,
         },
     )
