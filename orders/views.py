@@ -5,6 +5,24 @@ from shops.decorators import public_shop_required
 from .models import Order
 
 
+def _order_context(order):
+    """Shared context for both the one-time success page and the
+    persistent tracking page — same order, same shape, so they can
+    render through the same _order_overview.html partial.
+
+    payment is read via getattr with a default rather than
+    order.payment directly: Payment is a OneToOneField with no row
+    created yet for most orders (SCRUM-78 records it after the fact),
+    and Django's reverse one-to-one accessor raises DoesNotExist (a
+    subclass of AttributeError) when there's no row — which is exactly
+    what getattr's default argument is for."""
+    return {
+        "order_items": order.items.select_related("variant"),
+        "payment_method_display": order.selected_payment_method.get_method_name_display(),
+        "payment": getattr(order, "payment", None),
+    }
+
+
 @public_shop_required
 def order_success(request, shop, tracking_token):
     """Real order confirmation, looked up by tracking_token (an
@@ -20,6 +38,24 @@ def order_success(request, shop, tracking_token):
     return render(request, "storefront/order_success.html", {
         "shop": shop,
         "order": order,
-        "order_items": order.items.select_related("variant"),
-        "payment_method_display": order.selected_payment_method.get_method_name_display(),
+        **_order_context(order),
+    })
+
+
+@public_shop_required
+def track_order(request, shop, tracking_token):
+    """Persistent "where's my order" page a customer can revisit any
+    time, linked from the order-success page. Looked up by
+    tracking_token + shop only — never by pk, for the same reason as
+    order_success above."""
+    order = get_object_or_404(
+        Order.objects.select_related("selected_payment_method"),
+        tracking_token=tracking_token,
+        shop=shop,
+    )
+
+    return render(request, "storefront/order_tracking.html", {
+        "shop": shop,
+        "order": order,
+        **_order_context(order),
     })
