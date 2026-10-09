@@ -50,5 +50,9 @@ urlpatterns = [
         name="payment-method-settings",
     ),
 
-
+path(
+    "under-construction/<slug:feature>/",
+    views.under_construction,
+    name="under-construction",
+),
 ]
