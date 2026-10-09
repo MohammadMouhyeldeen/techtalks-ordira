@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.template.loader import render_to_string
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -257,6 +258,20 @@ class MerchantOrderViewTests(TestCase):
         self.assertContains(response, "Medium")
         self.assertContains(response, "20.00")
         self.assertContains(response, "USD")
+
+    def test_order_detail_shows_not_available_when_payment_method_missing(self):
+        # selected_payment_method is PROTECT + NOT NULL, so a shop can never
+        # actually delete one out from under a real order — this mutates an
+        # in-memory (unsaved) copy to exercise the template guard directly.
+        order = self.new_order
+        order.selected_payment_method = None
+
+        html = render_to_string(
+            "orders/order_detail.html",
+            {"shop": self.shop, "order": order},
+        )
+
+        self.assertIn("Not available", html)
 
     def test_opening_other_shop_order_returns_404(self):
         self.client.force_login(self.owner)
