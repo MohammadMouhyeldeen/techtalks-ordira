@@ -41,24 +41,19 @@
         </a>
 
 
-        <a href="#"
-           class="sidebar-link">
-
-            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-users"/></svg></span>
-
-            <span>Customers</span>
-
-        </a>
-
-
-        <a href="#"
-           class="sidebar-link">
-
-            <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-truck"/></svg></span>
-
-            <span>Delivery Zones</span>
-
-        </a>
+        {% if shop %}
+<a href="{% url 'shops:delivery-zone-list' shop_pk=shop.pk %}"
+   class="sidebar-link">
+    <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-truck"/></svg></span>
+    <span>Delivery Zones</span>
+</a>
+{% else %}
+<a href="#"
+   class="sidebar-link">
+    <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-truck"/></svg></span>
+    <span>Delivery Zones</span>
+</a>
+{% endif %}
     </div>
 
     {% if shop %}
