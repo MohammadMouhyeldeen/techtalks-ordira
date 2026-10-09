@@ -33,11 +33,17 @@ The ticket assumes a shop can delete a payment method out from under a placed or
 - **`templates/orders/order_detail.html`** (merchant-facing order detail, SCRUM-64) — wrapped the payment method cell in `{% if order.selected_payment_method %}...{% else %}Not available{% endif %}`. This one was never going to 500 (Django templates swallow `AttributeError` on a dotted lookup and render it as empty), but it would have silently shown a blank "Method" row instead of the required "Not available" copy.
 - `templates/storefront/order_success.html` needed no change — it already rendered `payment_method_display` from context, so fixing the view fixes this page.
 
+## Rebase note (PR #61 onto develop after PR #60/SCRUM-82 merged)
+
+This branch was cut before SCRUM-82 (the tracking page, PR #60) merged. Once it merged, `orders/views.py` and `orders/tests.py` both conflicted — develop had grown `_order_context()` (shared by `order_success` and the new `track_order`) and `OrderTrackingViewTests`, while this branch had `_payment_method_display()` and its own two tests. Resolved by keeping develop's `_order_context()`/`track_order` and routing `_order_context()`'s `payment_method_display` key through `_payment_method_display(order)`, so the guard now covers the tracking page too — and added a third test for that page specifically.
+
 ## Automated testing
 
 - **`orders/tests.py::OrderSuccessViewTests`** (2 new tests):
   - A real checked-out order's payment method still displays its real name ("Cash") — regression guard for the refactor.
   - `_payment_method_display` returns "Not available" for an order whose `selected_payment_method` was cleared in memory (never saved — the DB would reject a real `NULL` write here, per the discrepancy above).
+- **`orders/tests.py::OrderTrackingViewTests`** (1 new test):
+  - The tracking page (`storefront/order_tracking.html`, via `_order_context`) renders "Not available" for the same in-memory-missing-payment-method case, proving the shared helper covers both pages.
 - **`orders/test_merchant_orders.py::MerchantOrderViewTests`** (1 new test):
   - `templates/orders/order_detail.html` renders "Not available" (via `render_to_string` against an in-memory-mutated order) instead of a blank cell or an error.
 
@@ -50,8 +56,9 @@ python manage.py test
 ```
 
 - Django's system check identified no issues.
-- `orders`: **37 tests passed.**
-- Complete test suite: **422 tests passed.**
+- `orders`: **40 tests passed.**
+- Complete test suite: **431 tests passed** (after rebasing on `develop` post-SCRUM-82).
+- Manual: `curl`'d both `/store/demo-fashion/order-success/<token>/` and `/store/demo-fashion/track/<token>/` against the running dev server — both 200, both correctly showing the real payment method ("Cash").
 
 ## Files changed
 
