@@ -51,6 +51,7 @@ Task documentation is organized by sprint under `docs/tasks/`.
 
 - [SCRUM-64 — Merchant Order List and Detail](tasks/sprint-5/SCRUM-64-merchant-order-list-detail.md)
 - [SCRUM-77 — Order Cancellation Service](tasks/sprint-5/SCRUM-77-order-cancellation.md)
+- [SCRUM-78 — Record Payment](tasks/sprint-5/SCRUM-78-record-payment.md)
 
 ## Documentation structure
 

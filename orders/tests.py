@@ -746,14 +746,14 @@ class OrderTrackingViewTests(TestCase):
         self.assertContains(response, "Jounieh")
         self.assertContains(response, "Jounieh Highway")
 
-    def test_no_payment_recorded_yet_shows_gracefully(self):
+    def test_no_payment_shows_unpaid_status(self):
         order = self._place_order()
 
         response = self.client.get(
             reverse("track_order", args=[self.shop.slug, order.tracking_token])
         )
 
-        self.assertContains(response, "Not recorded yet")
+        self.assertContains(response, "Unpaid")
 
     def test_linked_from_order_success_page(self):
         order = self._place_order()

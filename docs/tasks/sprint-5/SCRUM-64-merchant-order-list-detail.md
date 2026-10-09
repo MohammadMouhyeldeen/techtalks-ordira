@@ -3,7 +3,7 @@
 **Owner:** Reem Saijary
 **Sprint:** Sprint 5
 **Date completed:** October 7, 2026
-**Status:** Ready for review
+**Status:** Merged
 **Related ticket:** SCRUM-64
 **Branch:** `feature/SCRUM-64-merchant-order-list-detail`
 **Target branch:** `develop`

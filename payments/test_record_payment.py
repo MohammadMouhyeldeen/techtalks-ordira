@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -7,7 +8,7 @@ from django.urls import reverse
 
 from customers.models import Customer
 from orders.models import Order
-from shops.models import Shop, ShopPaymentMethod
+from shops.models import Shop, ShopPaymentMethod, Subscription
 
 from .models import Payment
 from .services import record_payment
@@ -31,6 +32,13 @@ class RecordPaymentTests(TestCase):
             slug="payment-shop",
             pickup_available=True,
             exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+
+        Subscription.objects.create(
+            shop=self.shop,
+            plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE,
+            starts_on=date.today(),
         )
 
         self.customer = Customer.objects.create(
@@ -68,6 +76,14 @@ class RecordPaymentTests(TestCase):
             kwargs={
                 "shop_pk": self.shop.pk,
                 "order_pk": self.order.pk,
+            },
+        )
+
+        self.tracking_url = reverse(
+            "track_order",
+            kwargs={
+                "shop_slug": self.shop.slug,
+                "tracking_token": self.order.tracking_token,
             },
         )
 
@@ -230,4 +246,41 @@ class RecordPaymentTests(TestCase):
         self.assertEqual(response.status_code, 405)
         self.assertFalse(
             Payment.objects.filter(order=self.order).exists()
+        )
+
+    def test_tracking_page_shows_unpaid_without_payment(self):
+        response = self.client.get(self.tracking_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "<strong>Unpaid</strong>",
+            html=True,
+        )
+        self.assertNotContains(
+            response,
+            "<strong>Paid</strong>",
+            html=True,
+        )
+
+    def test_tracking_page_shows_paid_after_payment_recorded(self):
+        record_payment(
+            order=self.order,
+            method=self.method,
+            amount=Decimal("15.00"),
+            currency=Payment.Currency.USD,
+        )
+
+        response = self.client.get(self.tracking_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "<strong>Paid</strong>",
+            html=True,
+        )
+        self.assertNotContains(
+            response,
+            "<strong>Unpaid</strong>",
+            html=True,
         )
