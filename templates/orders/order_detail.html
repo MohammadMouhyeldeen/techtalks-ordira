@@ -71,28 +71,133 @@
             </dl>
         </section>
 
-        <section class="order-card">
+               <section class="order-card">
             <h2>Payment</h2>
 
-            <dl class="order-details-list">
-                <div>
-                    <dt>Method</dt>
-                    <dd>
-                        {% if order.selected_payment_method %}
-                            {{ order.selected_payment_method.get_method_name_display }}
-                        {% else %}
-                            Not available
-                        {% endif %}
-                    </dd>
+            {% if payment %}
+                <span class="payment-status payment-status-paid">
+                    Paid
+                </span>
+
+                <dl class="order-details-list">
+                    <div>
+                        <dt>Method</dt>
+                        <dd>{{ payment.method_name_snapshot }}</dd>
+                    </div>
+
+                    <div>
+                        <dt>Amount received</dt>
+                        <dd>
+                            {{ payment.amount }} {{ payment.currency }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>Amount in order currency</dt>
+                        <dd>
+                            {{ payment.amount_in_order_currency }}
+                            {{ order.currency }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>Received at</dt>
+                        <dd>
+                            {{ payment.received_at|date:"M d, Y H:i" }}
+                        </dd>
+                    </div>
+
+                    {% if payment.note %}
+                        <div>
+                            <dt>Note</dt>
+                            <dd>{{ payment.note }}</dd>
+                        </div>
+                    {% endif %}
+                </dl>
+            {% else %}
+                <span class="payment-status payment-status-unpaid">
+                    Unpaid
+                </span>
+
+                <dl class="order-details-list">
+                    <div>
+                        <dt>Selected method</dt>
+                        <dd>
+                            {% if order.selected_payment_method %}
+                                {{ order.selected_payment_method.get_method_name_display }}
+                            {% else %}
+                                Not available
+                            {% endif %}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>Order total</dt>
+                        <dd>{{ order.total }} {{ order.currency }}</dd>
+                    </div>
+                </dl>
+            {% endif %}
+        </section>
+
+    </div>
+
+    {% if payment_form %}
+    <section class="order-card payment-form-card">
+        <h2>Record payment</h2>
+
+        <p class="payment-form-description">
+            Record the payment received from the customer.
+        </p>
+
+        <form
+            method="post"
+            action="{% url 'payments:record-payment' shop_pk=shop.pk order_pk=order.pk %}"
+            class="payment-form"
+        >
+            {% csrf_token %}
+
+            <div class="payment-form-field">
+                <label for="{{ payment_form.method.id_for_label }}">
+                    Payment method
+                </label>
+                {{ payment_form.method }}
+            </div>
+
+            <div class="payment-form-row">
+                <div class="payment-form-field">
+                    <label for="{{ payment_form.amount.id_for_label }}">
+                        Amount
+                    </label>
+                    {{ payment_form.amount }}
                 </div>
 
-                <div>
-                    <dt>Currency</dt>
-                    <dd>{{ order.currency }}</dd>
+                <div class="payment-form-field">
+                    <label for="{{ payment_form.currency.id_for_label }}">
+                        Currency
+                    </label>
+                    {{ payment_form.currency }}
                 </div>
-            </dl>
-        </section>
-    </div>
+            </div>
+
+            <div class="payment-form-field">
+                <label for="{{ payment_form.note.id_for_label }}">
+                    Note
+                </label>
+                {{ payment_form.note }}
+            </div>
+
+            <button type="submit" class="payment-submit-button">
+                Record payment
+            </button>
+        </form>
+    </section>
+{% elif not payment and order.status == "CANCELLED" %}
+    <section class="order-card payment-unavailable">
+        <h2>Payment unavailable</h2>
+        <p>A cancelled order cannot receive a payment.</p>
+    </section>
+{% endif %}
+
     <section class="order-card">
         <h2>Order items</h2>
         <div class="orders-table-wrapper">

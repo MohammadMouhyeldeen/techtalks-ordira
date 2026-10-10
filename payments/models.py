@@ -39,6 +39,7 @@ class Payment(models.Model):
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     method_name_snapshot = models.CharField(max_length=30)
+    note = models.TextField(blank=True)
     received_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(
         max_length=20,

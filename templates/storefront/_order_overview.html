@@ -32,12 +32,14 @@
 
     <div class="checkout-section checkout-section--payment" style="animation-delay:200ms">
       <h2><span class="checkout-section__icon"><svg width="15" height="15"><use href="#i-wallet"/></svg></span>Payment status</h2>
-      {% if payment %}
-        <p><strong>{{ payment.get_status_display }}</strong></p>
-        {% if payment.received_at %}<p>Received {{ payment.received_at|date:"M j, Y" }}</p>{% endif %}
-      {% else %}
-        <p><strong>Not recorded yet</strong></p>
-      {% endif %}
+      {% if payment and payment.status == "PAID" %}
+  <p><strong>Paid</strong></p>
+  {% if payment.received_at %}
+    <p>Received {{ payment.received_at|date:"M j, Y" }}</p>
+  {% endif %}
+{% else %}
+  <p><strong>Unpaid</strong></p>
+{% endif %}
     </div>
   </div>
 
