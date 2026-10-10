@@ -87,7 +87,7 @@ class RecordPaymentTests(TestCase):
             },
         )
 
-    def test_owner_can_record_payment(self):
+    def test_exact_payment_in_order_currency_is_accepted(self):
         payment = record_payment(
             order=self.order,
             method=self.method,
@@ -171,7 +171,7 @@ class RecordPaymentTests(TestCase):
             Payment.objects.filter(order=self.order).exists()
         )
 
-    def test_payment_currency_is_converted_to_order_currency(self):
+    def test_exact_lbp_payment_for_usd_order_is_accepted(self):
         payment = record_payment(
             order=self.order,
             method=self.method,
@@ -184,6 +184,127 @@ class RecordPaymentTests(TestCase):
             Decimal("15.00"),
         )
 
+    def test_partial_payment_is_rejected_without_creating_payment(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Payment must cover the full order total of 15.00 USD.",
+        ):
+            record_payment(
+                order=self.order,
+                method=self.method,
+                amount=Decimal("1.00"),
+                currency=Payment.Currency.USD,
+            )
+
+        self.assertFalse(
+            Payment.objects.filter(order=self.order).exists()
+        )
+
+    def test_rejected_partial_payment_can_be_followed_by_full_payment(self):
+        with self.assertRaises(ValidationError):
+            record_payment(
+                order=self.order,
+                method=self.method,
+                amount=Decimal("1.00"),
+                currency=Payment.Currency.USD,
+            )
+
+        payment = record_payment(
+            order=self.order,
+            method=self.method,
+            amount=Decimal("15.00"),
+            currency=Payment.Currency.USD,
+        )
+
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(payment.amount, Decimal("15.00"))
+        self.assertEqual(
+            Payment.objects.filter(order=self.order).count(),
+            1,
+        )
+
+    def test_usd_payment_for_lbp_order_accepts_rounding_tolerance(self):
+        self.order.items_total = Decimal("1000.00")
+        self.order.total = Decimal("1000.00")
+        self.order.currency = Order.Currency.LBP
+        self.order.save(
+            update_fields=[
+                "items_total",
+                "total",
+                "currency",
+            ]
+        )
+
+        payment = record_payment(
+            order=self.order,
+            method=self.method,
+            amount=Decimal("0.01"),
+            currency=Payment.Currency.USD,
+        )
+
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(payment.amount, Decimal("0.01"))
+        self.assertEqual(
+            payment.amount_in_order_currency,
+            Decimal("900.00"),
+        )
+
+    def test_cross_currency_overpayment_beyond_tolerance_is_rejected(self):
+        self.order.items_total = Decimal("1350000.00")
+        self.order.total = Decimal("1350000.00")
+        self.order.currency = Order.Currency.LBP
+        self.order.save(
+            update_fields=[
+                "items_total",
+                "total",
+                "currency",
+            ]
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Payment amount cannot exceed the order total.",
+        ):
+            record_payment(
+                order=self.order,
+                method=self.method,
+                amount=Decimal("15.02"),
+                currency=Payment.Currency.USD,
+            )
+
+        self.assertFalse(
+            Payment.objects.filter(order=self.order).exists()
+        )
+
+    def test_cross_currency_underpayment_beyond_tolerance_is_rejected(self):
+        self.order.items_total = Decimal("1350000.00")
+        self.order.total = Decimal("1350000.00")
+        self.order.currency = Order.Currency.LBP
+        self.order.save(
+            update_fields=[
+                "items_total",
+                "total",
+                "currency",
+            ]
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            (
+                "Payment must cover the full order total of "
+                "1350000.00 LBP."
+            ),
+        ):
+            record_payment(
+                order=self.order,
+                method=self.method,
+                amount=Decimal("14.98"),
+                currency=Payment.Currency.USD,
+            )
+
+        self.assertFalse(
+            Payment.objects.filter(order=self.order).exists()
+        )
     def test_non_owner_receives_404(self):
         other_owner = User.objects.create_user(
             email="other-owner@example.com",

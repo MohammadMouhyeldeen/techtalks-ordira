@@ -57,7 +57,7 @@ The `record_payment()` service:
 5. Confirms that the selected payment method is enabled.
 6. Validates the payment amount and currency.
 7. Converts the amount to the Order’s currency when necessary.
-8. Rejects a payment whose converted value exceeds the Order total.
+8. Requires the payment to cover the full Order total. Same-currency payments must match exactly, while cross-currency payments allow a rounding tolerance of one smallest payment-currency unit.
 9. Creates the Payment with a `PAID` status.
 10. Records the date and time in `received_at`.
 
@@ -201,7 +201,7 @@ It verifies that:
 - The payment method is enabled.
 - The amount is valid and greater than zero.
 - The currency is supported.
-- The converted amount does not exceed the Order total.
+- The payment covers the full Order total, with a small rounding tolerance allowed only for cross-currency payments.
 - The Order is not cancelled.
 - A Payment has not already been recorded.
 
@@ -248,8 +248,8 @@ git diff --check
 
 Results:
 
-- All 10 dedicated payment-recording tests passed.
-- The complete project test suite passed: 437 tests.
+- All 15 dedicated payment-recording tests passed.
+- The complete project test suite passed: 446 tests.
 - Django’s system check identified no issues.
 - No missing migrations were detected.
 - No whitespace errors were found.
