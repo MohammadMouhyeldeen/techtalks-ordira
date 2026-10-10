@@ -1,5 +1,8 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
+from django.core.exceptions import ValidationError
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from shops.decorators import public_shop_required
 from shops.models import Shop
@@ -7,6 +10,7 @@ from shops.models import Shop
 from payments.forms import RecordPaymentForm
 
 from .models import Order
+from .services import cancel_order, transition_order_status
 
 
 def _payment_method_display(order):
@@ -155,4 +159,55 @@ def merchant_order_detail(request, shop_pk, order_pk):
             "payment": payment,
             "payment_form": payment_form,
         },
+    )
+
+
+@login_required
+@require_POST
+def merchant_order_action(request, shop_pk, order_pk):
+    shop = _get_owner_shop(request, shop_pk)
+
+    order = get_object_or_404(
+        Order,
+        pk=order_pk,
+        shop=shop,
+    )
+
+    action = request.POST.get("action", "")
+
+    try:
+        if action == "advance":
+            target_status = request.POST.get("target_status", "")
+            updated_order = transition_order_status(
+                order,
+                target_status,
+            )
+            messages.success(
+                request,
+                f"Order status updated to "
+                f"{updated_order.get_status_display()}.",
+            )
+
+        elif action == "cancel":
+            cancel_order(
+                order,
+                request.POST.get("cancellation_reason", ""),
+            )
+            messages.success(request, "Order cancelled.")
+
+        else:
+            messages.error(request, "Invalid order action.")
+
+    except ValidationError as exc:
+        error_message = (
+            exc.messages[0]
+            if exc.messages
+            else "Unable to update the order."
+        )
+        messages.error(request, error_message)
+
+    return redirect(
+        "orders:order-detail",
+        shop_pk=shop.pk,
+        order_pk=order.pk,
     )

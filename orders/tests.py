@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import connection
 from django.template.loader import render_to_string
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
@@ -20,8 +20,14 @@ from products.models import (
 from shops.models import DeliveryZone, Shop, ShopPaymentMethod, Subscription
 
 from .models import Order, OrderItem
-from .services import cancel_order, create_order
+from .services import(
+    cancel_order,
+    create_order,
+    transition_order_status,
+)
 from .views import _order_context, _payment_method_display
+
+from unittest.mock import patch
 
 
 User = get_user_model()
@@ -511,6 +517,435 @@ class CheckoutServiceTests(TestCase):
             ),
             "Expected the ProductVariant query to use FOR UPDATE.",
         )
+
+
+    def test_transition_new_to_preparing(self):
+        order = self.create_delivery_order()
+
+        updated_order = transition_order_status(
+            order,
+            Order.Status.PREPARING,
+        )
+
+        self.assertEqual(updated_order.status, Order.Status.PREPARING)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+
+    def test_transition_preparing_to_handed_to_delivery(self):
+        order = self.create_delivery_order()
+        transition_order_status(order, Order.Status.PREPARING)
+
+        updated_order = transition_order_status(
+            order,
+            Order.Status.HANDED_TO_DELIVERY,
+        )
+
+        self.assertEqual(
+            updated_order.status,
+            Order.Status.HANDED_TO_DELIVERY,
+        )
+
+    def test_transition_handed_to_delivery_to_completed(self):
+        order = self.create_delivery_order()
+        transition_order_status(order, Order.Status.PREPARING)
+        transition_order_status(
+            order,
+            Order.Status.HANDED_TO_DELIVERY,
+        )
+
+        updated_order = transition_order_status(
+            order,
+            Order.Status.COMPLETED,
+        )
+
+        self.assertEqual(updated_order.status, Order.Status.COMPLETED)
+
+    def test_transition_rejects_skipped_and_backward_moves(self):
+        order = self.create_delivery_order()
+
+        invalid_moves = [
+            Order.Status.HANDED_TO_DELIVERY,
+            Order.Status.COMPLETED,
+        ]
+        for target_status in invalid_moves:
+            with self.subTest(target_status=target_status):
+                with self.assertRaisesMessage(
+                    ValidationError,
+                    "Order can only move from New Order to Preparing.",
+                ):
+                    transition_order_status(order, target_status)
+
+        transition_order_status(order, Order.Status.PREPARING)
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Order can only move from Preparing to Handed to Delivery.",
+        ):
+            transition_order_status(order, Order.Status.NEW)
+
+        with self.assertRaises(ValidationError):
+            transition_order_status(order, Order.Status.COMPLETED)
+
+    def test_transition_rejects_invalid_target_status(self):
+        order = self.create_delivery_order()
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Invalid target order status.",
+        ):
+            transition_order_status(order, "INVALID")
+
+    def test_completed_order_is_terminal(self):
+        order = self.create_delivery_order()
+        transition_order_status(order, Order.Status.PREPARING)
+        transition_order_status(
+            order,
+            Order.Status.HANDED_TO_DELIVERY,
+        )
+        transition_order_status(order, Order.Status.COMPLETED)
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Completed orders are terminal and cannot be changed.",
+        ):
+            transition_order_status(order, Order.Status.PREPARING)
+
+    def test_cancelled_order_is_terminal(self):
+        order = self.create_delivery_order()
+        cancel_order(order, "Customer requested cancellation.")
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Cancelled orders are terminal and cannot be changed.",
+        ):
+            transition_order_status(order, Order.Status.PREPARING)
+
+
+    def test_merchant_can_advance_order_status(self):
+        order = self.create_delivery_order()
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+            {
+                "action": "advance",
+                "target_status": Order.Status.PREPARING,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "orders:order-detail",
+                args=[self.shop.pk, order.pk],
+            ),
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+
+    def test_merchant_cannot_skip_order_status(self):
+        order = self.create_delivery_order()
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+            {
+                "action": "advance",
+                "target_status": Order.Status.HANDED_TO_DELIVERY,
+            },
+            follow=True,
+        )
+
+        self.assertContains(
+            response,
+            "Order can only move from New Order to Preparing.",
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.NEW)
+
+    def test_order_action_rejects_get(self):
+        order = self.create_delivery_order()
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_order_action_requires_csrf_token(self):
+        order = self.create_delivery_order()
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.owner)
+
+        response = csrf_client.post(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+            {
+                "action": "advance",
+                "target_status": Order.Status.PREPARING,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.NEW)
+
+    @patch("orders.views.cancel_order")
+    def test_cancel_action_delegates_to_scrum77_service(
+        self,
+        cancel_order_mock,
+    ):
+        order = self.create_delivery_order()
+        self.client.force_login(self.owner)
+        reason = "Customer requested cancellation."
+
+        response = self.client.post(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+            {
+                "action": "cancel",
+                "cancellation_reason": reason,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        cancel_order_mock.assert_called_once()
+        called_order, called_reason = cancel_order_mock.call_args.args
+        self.assertEqual(called_order.pk, order.pk)
+        self.assertEqual(called_reason, reason)
+
+    def test_rejected_cancel_displays_service_error(self):
+        order = self.create_delivery_order()
+        transition_order_status(order, Order.Status.PREPARING)
+        transition_order_status(
+            order,
+            Order.Status.HANDED_TO_DELIVERY,
+        )
+        transition_order_status(order, Order.Status.COMPLETED)
+
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+            {
+                "action": "cancel",
+                "cancellation_reason": "Customer requested cancellation.",
+            },
+            follow=True,
+        )
+
+        self.assertContains(
+            response,
+            "Completed orders cannot be cancelled.",
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.COMPLETED)
+
+    def test_order_action_returns_404_for_wrong_shop(self):
+        order = self.create_delivery_order()
+
+        other_shop = Shop.objects.create(
+            owner=self.owner,
+            name="Other Shop",
+            slug="other-shop",
+            pickup_available=True,
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "orders:order-action",
+                args=[other_shop.pk, order.pk],
+            ),
+            {
+                "action": "advance",
+                "target_status": Order.Status.PREPARING,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.NEW)
+
+    def test_order_detail_shows_only_valid_actions(self):
+        order = self.create_delivery_order()
+        self.client.force_login(self.owner)
+
+        detail_url = reverse(
+            "orders:order-detail",
+            args=[self.shop.pk, order.pk],
+        )
+
+        def assert_actions_visible(*visible, absent=()):
+            response = self.client.get(detail_url)
+            self.assertEqual(response.status_code, 200)
+
+            for label in visible:
+                self.assertContains(response, label)
+
+            for label in absent:
+                self.assertNotContains(response, label)
+
+        # NEW
+        assert_actions_visible(
+            "Mark as Preparing",
+            "Cancel Order",
+            absent=("Hand to Delivery", "Mark as Completed"),
+        )
+
+        # PREPARING
+        transition_order_status(order, Order.Status.PREPARING)
+        assert_actions_visible(
+            "Hand to Delivery",
+            "Cancel Order",
+            absent=("Mark as Preparing", "Mark as Completed"),
+        )
+
+        # HANDED_TO_DELIVERY
+        transition_order_status(
+            order,
+            Order.Status.HANDED_TO_DELIVERY,
+        )
+        assert_actions_visible(
+            "Mark as Completed",
+            "Cancel Order",
+            absent=("Mark as Preparing", "Hand to Delivery"),
+        )
+
+        # COMPLETED
+        transition_order_status(order, Order.Status.COMPLETED)
+        assert_actions_visible(
+            "Order items",
+            absent=(
+                "Order actions",
+                "Mark as Preparing",
+                "Hand to Delivery",
+                "Mark as Completed",
+                "Cancel Order",
+            ),
+        )
+
+        # CANCELLED
+        cancelled_order = self.create_delivery_order(
+            customer_phone="03987654",
+        )
+        cancel_order(cancelled_order, "Customer requested cancellation.")
+
+        cancelled_detail_url = reverse(
+            "orders:order-detail",
+            args=[self.shop.pk, cancelled_order.pk],
+        )
+        response = self.client.get(cancelled_detail_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cancellation reason")
+        self.assertNotContains(response, "Order actions")
+        self.assertNotContains(response, "Cancel Order")
+
+
+    def test_all_invalid_status_transitions_are_rejected(self):
+        # Multiple orders are created, so provide enough stock for each.
+        self.usd_variant.stock_quantity = 100
+        self.usd_variant.save(update_fields=["stock_quantity"])
+        self.lbp_variant.stock_quantity = 100
+        self.lbp_variant.save(update_fields=["stock_quantity"])
+
+        valid_next_status = {
+            Order.Status.NEW: Order.Status.PREPARING,
+            Order.Status.PREPARING: Order.Status.HANDED_TO_DELIVERY,
+            Order.Status.HANDED_TO_DELIVERY: Order.Status.COMPLETED,
+        }
+
+        for index, source_status in enumerate(Order.Status):
+            order = self.create_delivery_order(
+                customer_phone=f"03{index:06d}",
+            )
+
+            # Reach each source status through the existing services.
+            if source_status == Order.Status.PREPARING:
+                transition_order_status(
+                    order,
+                    Order.Status.PREPARING,
+                )
+            elif source_status in {
+                Order.Status.HANDED_TO_DELIVERY,
+                Order.Status.COMPLETED,
+            }:
+                transition_order_status(
+                    order,
+                    Order.Status.PREPARING,
+                )
+                transition_order_status(
+                    order,
+                    Order.Status.HANDED_TO_DELIVERY,
+                )
+
+                if source_status == Order.Status.COMPLETED:
+                    transition_order_status(
+                        order,
+                        Order.Status.COMPLETED,
+                    )
+            elif source_status == Order.Status.CANCELLED:
+                cancel_order(order, "Test cancellation.")
+
+            for target_status in Order.Status:
+                if target_status == valid_next_status.get(source_status):
+                    continue
+
+                with self.subTest(
+                    source=source_status,
+                    target=target_status,
+                ):
+                    with self.assertRaises(ValidationError):
+                        transition_order_status(order, target_status)
+
+                    order.refresh_from_db()
+                    self.assertEqual(order.status, source_status)
+
+    def test_order_action_returns_404_for_another_owner(self):
+        order = self.create_delivery_order()
+
+        other_owner = User.objects.create_user(
+            email="other-owner@example.com",
+            password="testpass123",
+            full_name="Other Shop Owner",
+            status=User.Status.ACTIVE,
+        )
+        self.client.force_login(other_owner)
+
+        response = self.client.post(
+            reverse(
+                "orders:order-action",
+                args=[self.shop.pk, order.pk],
+            ),
+            {
+                "action": "advance",
+                "target_status": Order.Status.PREPARING,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.NEW)
 
 
 class OrderSuccessViewTests(TestCase):

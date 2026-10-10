@@ -295,6 +295,53 @@ def create_order(
     return order
 
 
+ORDER_STATUS_TRANSITIONS = {
+    Order.Status.NEW: Order.Status.PREPARING,
+    Order.Status.PREPARING: Order.Status.HANDED_TO_DELIVERY,
+    Order.Status.HANDED_TO_DELIVERY: Order.Status.COMPLETED,
+}
+
+
+@transaction.atomic
+def transition_order_status(order, target_status):
+    """Apply one valid forward transition to an order."""
+    if target_status not in Order.Status.values:
+        raise ValidationError("Invalid target order status.")
+
+    locked_order = (
+        Order.objects
+        .select_for_update()
+        .get(pk=order.pk)
+    )
+
+    if locked_order.status in {
+        Order.Status.COMPLETED,
+        Order.Status.CANCELLED,
+    }:
+        raise ValidationError(
+            f"{locked_order.get_status_display()} orders are terminal "
+            "and cannot be changed."
+        )
+
+    expected_status = ORDER_STATUS_TRANSITIONS.get(locked_order.status)
+
+    if target_status != expected_status:
+        expected_display = (
+            Order.Status(expected_status).label
+            if expected_status
+            else "no further status"
+        )
+        raise ValidationError(
+            f"Order can only move from "
+            f"{locked_order.get_status_display()} to {expected_display}."
+        )
+
+    locked_order.status = target_status
+    locked_order.save(update_fields=["status"])
+
+    return locked_order
+
+
 @transaction.atomic
 def cancel_order(order, reason):
     locked_order = (

@@ -31,6 +31,67 @@
         </span>
     </div>
 
+    {% if order.status == "NEW" or order.status == "PREPARING" or order.status == "HANDED_TO_DELIVERY" %}
+        <section class="order-card order-actions">
+            <h2>Order actions</h2>
+
+            <form
+                method="post"
+                action="{% url 'orders:order-action' shop_pk=shop.pk order_pk=order.pk %}"
+            >
+                {% csrf_token %}
+                <input type="hidden" name="action" value="advance">
+
+                {% if order.status == "NEW" %}
+                    <input
+                        type="hidden"
+                        name="target_status"
+                        value="PREPARING"
+                    >
+                    <button type="submit">Mark as Preparing</button>
+
+                {% elif order.status == "PREPARING" %}
+                    <input
+                        type="hidden"
+                        name="target_status"
+                        value="HANDED_TO_DELIVERY"
+                    >
+                    <button type="submit">Hand to Delivery</button>
+
+                {% elif order.status == "HANDED_TO_DELIVERY" %}
+                    <input
+                        type="hidden"
+                        name="target_status"
+                        value="COMPLETED"
+                    >
+                    <button type="submit">Mark as Completed</button>
+                {% endif %}
+            </form>
+
+            <form
+                method="post"
+                action="{% url 'orders:order-action' shop_pk=shop.pk order_pk=order.pk %}"
+            >
+                {% csrf_token %}
+                <input type="hidden" name="action" value="cancel">
+
+                <div class="form-field">
+                    <label for="cancellation_reason">
+                        Cancellation reason
+                    </label>
+                    <textarea
+                        id="cancellation_reason"
+                        name="cancellation_reason"
+                        rows="3"
+                        required
+                    ></textarea>
+                </div>
+
+                <button type="submit">Cancel Order</button>
+            </form>
+        </section>
+    {% endif %}
+
     <div class="order-information-grid">
         <section class="order-card">
             <h2>Customer information</h2>
