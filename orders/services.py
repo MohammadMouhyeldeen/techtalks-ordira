@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from customers.models import Customer
+from customers.models import Customer, normalize_phone_number
 from products.models import ProductVariant, StockMovement
 
 from .models import Order, OrderItem
@@ -121,7 +121,7 @@ def create_order(
     address="",
 ):
     customer_name = customer_name.strip()
-    customer_phone = customer_phone.strip()
+    customer_phone = (customer_phone or "").strip()
     address = address.strip()
 
     if not customer_name:
@@ -129,6 +129,8 @@ def create_order(
 
     if not customer_phone:
         raise ValidationError("Customer phone number is required.")
+
+    customer_phone = normalize_phone_number(customer_phone)
 
     if currency not in Order.Currency.values:
         raise ValidationError("Unsupported order currency.")
