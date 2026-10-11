@@ -5,33 +5,37 @@ from django.db import models
 
 
 def normalize_phone_number(value: str) -> str:
-    """Normalize and validate a Customer phone number."""
+    """Normalize Lebanese local and international phone numbers."""
 
-    phone = (value or "").strip()
+    phone = re.sub(r"[\s()+\-]", "", str(value or ""))
 
     if not phone:
-        raise ValidationError(
-            "Phone number is required."
-        )
+        raise ValidationError("Phone number is required.")
 
-    if phone.startswith("+"):
-        phone = phone[1:]
+    if not phone.isascii() or not phone.isdigit():
+        raise ValidationError("Enter a valid phone number.")
 
-    phone = re.sub(r"[\s\-\(\)\[\]]", "", phone)
+    # Convert international dialing prefix 00 to its country-code form.
+    if phone.startswith("00"):
+        phone = phone[2:]
 
-    if (
-        not phone.isdigit()
-        or not phone.isascii()
-        or not 10 <= len(phone) <= 15
-    ):
-        raise ValidationError(
-            "Enter a phone number with 10 to 15 digits, "
-            "including the country code."
-        )
-
+    # Convert a Lebanese local number to country-code form.
     if phone.startswith("0"):
+        phone = f"961{phone[1:]}"
+    elif len(phone) in (7, 8):
+        # Bare 7–8 digit numbers are treated as Lebanese local numbers.
+        phone = f"961{phone}"
+
+    # Lebanese numbers must be 10–11 digits including 961.
+    if phone.startswith("961"):
+        if not 10 <= len(phone) <= 11:
+            raise ValidationError(
+                "Enter a valid Lebanese phone number with "
+                "10 or 11 digits including country code 961."
+            )
+    elif not 10 <= len(phone) <= 15:
         raise ValidationError(
-            "Enter the phone number with the country code."
+            "Enter a valid phone number with 10 to 15 digits."
         )
 
     return phone
