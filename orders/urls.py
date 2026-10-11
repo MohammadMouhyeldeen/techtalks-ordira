@@ -12,6 +12,11 @@ urlpatterns = [
         name="order-list",
     ),
     path(
+        "shops/<int:shop_pk>/orders/<int:order_pk>/action/",
+        views.merchant_order_action,
+        name="order-action",
+    ),
+    path(
         "shops/<int:shop_pk>/orders/<int:order_pk>/",
         views.merchant_order_detail,
         name="order-detail",
