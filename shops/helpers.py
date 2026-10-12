@@ -11,6 +11,28 @@ def is_catalog_public(shop: Shop) -> bool:
     ).exists()
 
 
+def get_latest_subscription(shop: Shop) -> Subscription | None:
+    """Return the shop's most recent Subscription row, or None.
+
+    Ordered by starts_on descending, then id descending — the same
+    "most recent first" ordering used by the admin subscription_list
+    view.  Callers that need the actual row (e.g. an admin edit form)
+    use this directly; callers that only need a status string use
+    subscription_status().
+    """
+    return shop.subscriptions.order_by("-starts_on", "-id").first()
+
+
+def subscription_status(shop: Shop) -> str:
+    """Return the shop's latest subscription status, or "NONE".
+
+    Possible return values: "NONE", "ACTIVE", "EXPIRED", "CANCELLED".
+    "NONE" means the shop has never had a Subscription row.
+    """
+    latest = get_latest_subscription(shop)
+    return latest.status if latest else "NONE"
+
+
 def get_dashboard_stats(shop: Shop) -> dict:
     """Real product/variant/low-stock counts for a shop's dashboard.
 

@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ order.order_number }} | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'orders/css/orders.css' %}?v=2">
+{% endblock %}
+
+{% block content %}
+
+<div class="orders-page">
+    <a
+        href="{% url 'orders:order-list' shop_pk=shop.pk %}"
+        class="order-back-link"
+    >
+        &larr; Back to orders
+    </a>
+
+    <div class="order-detail-header">
+        <div>
+            <p class="order-detail-label">Order</p>
+            <h1>{{ order.order_number }}</h1>
+            <p>
+                Placed on {{ order.created_at|date:"M d, Y H:i" }}
+            </p>
+        </div>
+
+        <span class="order-status order-status-{{ order.status|lower }}">
+            {{ order.get_status_display }}
+        </span>
+    </div>
+
+    {% if order.status == "NEW" or order.status == "PREPARING" or order.status == "HANDED_TO_DELIVERY" %}
+        <section class="order-card order-actions">
+            <h2>Order actions</h2>
+
+            <form
+                method="post"
+                action="{% url 'orders:order-action' shop_pk=shop.pk order_pk=order.pk %}"
+            >
+                {% csrf_token %}
+                <input type="hidden" name="action" value="advance">
+
+                {% if order.status == "NEW" %}
+                    <input
+                        type="hidden"
+                        name="target_status"
+                        value="PREPARING"
+                    >
+                    <button type="submit">Mark as Preparing</button>
+
+                {% elif order.status == "PREPARING" %}
+                    <input
+                        type="hidden"
+                        name="target_status"
+                        value="HANDED_TO_DELIVERY"
+                    >
+                    <button type="submit">Hand to Delivery</button>
+
+                {% elif order.status == "HANDED_TO_DELIVERY" %}
+                    <input
+                        type="hidden"
+                        name="target_status"
+                        value="COMPLETED"
+                    >
+                    <button type="submit">Mark as Completed</button>
+                {% endif %}
+            </form>
+
+            <form
+                method="post"
+                action="{% url 'orders:order-action' shop_pk=shop.pk order_pk=order.pk %}"
+            >
+                {% csrf_token %}
+                <input type="hidden" name="action" value="cancel">
+
+                <div class="form-field">
+                    <label for="cancellation_reason">
+                        Cancellation reason
+                    </label>
+                    <textarea
+                        id="cancellation_reason"
+                        name="cancellation_reason"
+                        rows="3"
+                        required
+                    ></textarea>
+                </div>
+
+                <button type="submit">Cancel Order</button>
+            </form>
+        </section>
+    {% endif %}
+
+    <div class="order-information-grid">
+        <section class="order-card">
+            <h2>Customer information</h2>
+
+            <dl class="order-details-list">
+                <div>
+                    <dt>Name</dt>
+                    <dd>{{ order.customer_name_snapshot }}</dd>
+                </div>
+
+                <div>
+                    <dt>Phone</dt>
+                    <dd>{{ order.customer_phone_snapshot }}</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="order-card">
+            <h2>Fulfillment</h2>
+
+            <dl class="order-details-list">
+                <div>
+                    <dt>Type</dt>
+                    <dd>{{ order.get_fulfillment_type_display }}</dd>
+                </div>
+
+                {% if order.fulfillment_type == "DELIVERY" %}
+                    <div>
+                        <dt>Delivery zone</dt>
+                        <dd>{{ order.zone_name_snapshot }}</dd>
+                    </div>
+
+                    <div>
+                        <dt>Address</dt>
+                        <dd>{{ order.address_snapshot }}</dd>
+                    </div>
+                {% endif %}
+            </dl>
+        </section>
+
+               <section class="order-card">
+            <h2>Payment</h2>
+
+            {% if payment %}
+                <span class="payment-status payment-status-paid">
+                    Paid
+                </span>
+
+                <dl class="order-details-list">
+                    <div>
+                        <dt>Method</dt>
+                        <dd>{{ payment.method_name_snapshot }}</dd>
+                    </div>
+
+                    <div>
+                        <dt>Amount received</dt>
+                        <dd>
+                            {{ payment.amount }} {{ payment.currency }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>Amount in order currency</dt>
+                        <dd>
+                            {{ payment.amount_in_order_currency }}
+                            {{ order.currency }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>Received at</dt>
+                        <dd>
+                            {{ payment.received_at|date:"M d, Y H:i" }}
+                        </dd>
+                    </div>
+
+                    {% if payment.note %}
+                        <div>
+                            <dt>Note</dt>
+                            <dd>{{ payment.note }}</dd>
+                        </div>
+                    {% endif %}
+                </dl>
+            {% else %}
+                <span class="payment-status payment-status-unpaid">
+                    Unpaid
+                </span>
+
+                <dl class="order-details-list">
+                    <div>
+                        <dt>Selected method</dt>
+                        <dd>
+                            {% if order.selected_payment_method %}
+                                {{ order.selected_payment_method.get_method_name_display }}
+                            {% else %}
+                                Not available
+                            {% endif %}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>Order total</dt>
+                        <dd>{{ order.total }} {{ order.currency }}</dd>
+                    </div>
+                </dl>
+            {% endif %}
+        </section>
+
+    </div>
+
+    {% if payment_form %}
+    <section class="order-card payment-form-card">
+        <h2>Record payment</h2>
+
+        <p class="payment-form-description">
+            Record the payment received from the customer.
+        </p>
+
+        <form
+            method="post"
+            action="{% url 'payments:record-payment' shop_pk=shop.pk order_pk=order.pk %}"
+            class="payment-form"
+        >
+            {% csrf_token %}
+
+            <div class="payment-form-field">
+                <label for="{{ payment_form.method.id_for_label }}">
+                    Payment method
+                </label>
+                {{ payment_form.method }}
+            </div>
+
+            <div class="payment-form-row">
+                <div class="payment-form-field">
+                    <label for="{{ payment_form.amount.id_for_label }}">
+                        Amount
+                    </label>
+                    {{ payment_form.amount }}
+                </div>
+
+                <div class="payment-form-field">
+                    <label for="{{ payment_form.currency.id_for_label }}">
+                        Currency
+                    </label>
+                    {{ payment_form.currency }}
+                </div>
+            </div>
+
+            <div class="payment-form-field">
+                <label for="{{ payment_form.note.id_for_label }}">
+                    Note
+                </label>
+                {{ payment_form.note }}
+            </div>
+
+            <button type="submit" class="payment-submit-button">
+                Record payment
+            </button>
+        </form>
+    </section>
+{% elif not payment and order.status == "CANCELLED" %}
+    <section class="order-card payment-unavailable">
+        <h2>Payment unavailable</h2>
+        <p>A cancelled order cannot receive a payment.</p>
+    </section>
+{% endif %}
+
+    <section class="order-card">
+        <h2>Order items</h2>
+        <div class="orders-table-wrapper">
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Color</th>
+                        <th>Size</th>
+                        <th>Unit price</th>
+                        <th>Quantity</th>
+                        <th>Line total</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for item in order.items.all %}
+                        <tr>
+                            <td>{{ item.product_name_snapshot }}</td>
+                            <td>{{ item.color_snapshot }}</td>
+                            <td>{{ item.size_snapshot }}</td>
+                            <td>
+                                {{ item.unit_price_snapshot }}
+                                {{ order.currency }}
+                            </td>
+                            <td>{{ item.quantity }}</td>
+                            <td>
+                                {{ item.line_total }}
+                                {{ order.currency }}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6">
+                                No items are available for this order.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="order-card order-summary">
+        <h2>Order summary</h2>
+
+        <div class="order-summary-row">
+            <span>Subtotal</span>
+            <strong>
+                {{ order.items_total }} {{ order.currency }}
+            </strong>
+        </div>
+
+        <div class="order-summary-row">
+            <span>Delivery fee</span>
+            <strong>
+                {{ order.delivery_fee_snapshot }}
+                {{ order.currency }}
+            </strong>
+        </div>
+
+        <div class="order-summary-row order-summary-total">
+            <span>Total</span>
+            <strong>{{ order.total }} {{ order.currency }}</strong>
+        </div>
+    </section>
+
+    {% if order.status == "CANCELLED" %}
+        <section class="order-card order-cancellation">
+            <h2>Cancellation reason</h2>
+            <p>{{ order.cancellation_reason }}</p>
+        </section>
+    {% endif %}
+</div>
+
+{% endblock %}

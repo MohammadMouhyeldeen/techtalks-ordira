@@ -35,10 +35,11 @@
   const qtyPlus = document.getElementById('qtyPlus');
   const qtyStockNote = document.getElementById('qtyStockNote');
   const addToCartBtn = document.getElementById('addToCartBtn');
+  const variantIdInput = document.getElementById('variantIdInput');
+  const quantityInput = document.getElementById('quantityInput');
 
   let qty = 1;
   let currentStock = 0;
-  let addedToCart = false;
 
   const setStockPill = (stock) => {
     if (!stockPill || !stockPillText) return;
@@ -60,6 +61,7 @@
     if (qtyValueEl) qtyValueEl.textContent = String(qty || 1);
     if (qtyMinus) qtyMinus.disabled = qty <= 1 || max === 0;
     if (qtyPlus) qtyPlus.disabled = qty >= max;
+    if (quantityInput) quantityInput.value = String(qty || 1);
     qtyStepper?.classList.toggle('is-disabled', max === 0);
   };
 
@@ -69,13 +71,14 @@
     currentStock = Number(pill?.dataset.stock || 0);
 
     if (priceEl && price) priceEl.textContent = `$${price}`;
+    if (variantIdInput) variantIdInput.value = pill?.dataset.variantId || '';
     setStockPill(currentStock);
     setQty(1);
 
     if (qtyStockNote) {
       qtyStockNote.textContent = currentStock > 0 ? `${currentStock} available` : 'Unavailable in this size';
     }
-    if (addToCartBtn && !addedToCart) addToCartBtn.disabled = currentStock <= 0;
+    if (addToCartBtn) addToCartBtn.disabled = currentStock <= 0;
   };
 
   const selectColor = (colorName) => {
@@ -112,52 +115,5 @@
     const activePill = pills.find((p) => p.classList.contains('active')) || pills[0];
     if (activePill) activatePill(activePill);
   }
-
-  /* ---------- Add to cart ----------
-     KNOWN LIMITATION (by design, for this sprint): this is cosmetic-only
-     feedback (button state + toast), not a real cart. There is no Cart
-     model, no session/localStorage persistence, and no shared state with
-     catalog.js's quick-add buttons or a navbar cart icon (none exists yet).
-     Refreshing this page or navigating away loses the "added" state.
-     A real cart needs its own design pass (guest session cart vs
-     localStorage vs requiring login, a navbar badge, etc.) rather than
-     being improvised here. */
-  const toast = document.getElementById('cartToast');
-  const toastText = document.getElementById('cartToastText');
-  let toastTimer = null;
-
-  const showToast = (message) => {
-    if (!toast) return;
-    if (toastText) toastText.textContent = message;
-    toast.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2400);
-  };
-
-  addToCartBtn?.addEventListener('click', () => {
-    if (addToCartBtn.disabled || currentStock <= 0 || addedToCart) return;
-
-    const productName = document.querySelector('.product-detail__name')?.textContent.trim() || 'Item';
-    const label = addToCartBtn.querySelector('span');
-
-    addedToCart = true;
-    addToCartBtn.classList.add('is-added');
-    addToCartBtn.disabled = true;
-    if (label) label.textContent = 'Added to Cart';
-    showToast(`Added ${qty} × ${productName} to cart`);
-  });
-
-  /* ---------- Quick add-to-cart on related product cards ---------- */
-  document.querySelectorAll('.related .product-card__add').forEach((btn) => {
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      const card = btn.closest('.product-card');
-      const name = card?.querySelector('.product-card__name')?.textContent.trim() || 'Item';
-      btn.classList.remove('is-added');
-      requestAnimationFrame(() => btn.classList.add('is-added'));
-      showToast(`Added ${name} to cart`);
-      setTimeout(() => btn.classList.remove('is-added'), 500);
-    });
-  });
 
 })();

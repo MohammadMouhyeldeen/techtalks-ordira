@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Products | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="inventory-page">
+    <div class="inventory-header">
+        <div>
+            <h1 class="inventory-title">Products</h1>
+            <p class="inventory-subtitle">
+                Manage the active products for {{ shop.name }}.
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <a
+                class="btn btn-secondary"
+                href="{% url 'products:category-list' shop_pk=shop.pk %}"
+            >
+                Manage categories
+            </a>
+
+            <a
+                class="btn btn-primary"
+                href="{% url 'products:product-create' shop_pk=shop.pk %}"
+            >
+                Add product
+            </a>
+        </div>
+    </div>
+
+    <div class="inventory-card">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Active products</h2>
+                <p class="section-description">
+                    View, edit, and manage products and their variants.
+                </p>
+            </div>
+
+            <span class="variant-count">
+                {{ products|length }} product{{ products|length|pluralize }}
+            </span>
+        </div>
+
+        {% if products %}
+            <div class="table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for product in products %}
+                            <tr>
+                                <td>
+                                    <strong>{{ product.name }}</strong>
+                                </td>
+
+                                <td>
+                                    {{ product.category.name }}
+                                </td>
+
+                                <td>
+                                    {{ product.description|default:"No description provided."|truncatechars:70 }}
+                                </td>
+
+                                <td>
+                                    <div class="table-actions">
+                                        <a
+                                            class="action-highlight"
+                                            href="{% url 'products:product-detail' shop_pk=shop.pk product_pk=product.pk %}"
+                                        >
+                                            View
+                                        </a>
+
+                                        <a
+                                            href="{% url 'products:product-edit' shop_pk=shop.pk product_pk=product.pk %}"
+                                        >
+                                            Edit
+                                        </a>
+
+                                        <form
+                                            class="danger-form"
+                                            method="post"
+                                            action="{% url 'products:product-archive' shop_pk=shop.pk product_pk=product.pk %}"
+                                            onsubmit="return confirm('Archive this product?');"
+                                        >
+                                            {% csrf_token %}
+                                            <button
+                                                class="btn btn-danger"
+                                                type="submit"
+                                            >
+                                                Archive
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">+</div>
+
+                <h3>No active products yet</h3>
+
+                <p>
+                    Add your first product, then create its purchasable
+                    color and size variants.
+                </p>
+
+                <a
+                    class="btn btn-primary"
+                    href="{% url 'products:product-create' shop_pk=shop.pk %}"
+                >
+                    Add your first product
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

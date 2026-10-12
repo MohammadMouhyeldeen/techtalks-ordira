@@ -62,6 +62,15 @@ class Subscription(models.Model):
     starts_on = models.DateField()
     ends_on = models.DateField(blank=True, null=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["shop"],
+                condition=models.Q(status="ACTIVE"),
+                name="one_active_subscription_per_shop",
+            ),
+        ]
+
     def __str__(self):
         return f"{self.shop.name} - {self.plan}"
 
@@ -121,4 +130,3 @@ class ShopPaymentMethod(models.Model):
 
     def __str__(self):
         return f"{self.shop.name} - {self.get_method_name_display()}"
-  

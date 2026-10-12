@@ -16,9 +16,18 @@
       </span>
       {{ shop.name|default:"Sara's Closet" }}
     </a>
-    <span class="storefront-header__tag">
-      <svg width="14" height="14"><use href="#i-check"/></svg>
-      Secure ordering
-    </span>
+    <div class="storefront-header__right">
+      <span class="storefront-header__tag">
+        <svg width="14" height="14"><use href="#i-check"/></svg>
+        Secure ordering
+      </span>
+      {% if shop %}
+      <a href="{% url 'cart_view' shop.slug %}" class="storefront-header__cart-link"
+         aria-label="View cart ({{ cart_count|default:0 }} item{{ cart_count|pluralize }})">
+        <svg width="20" height="20"><use href="#i-cart"/></svg>
+        {% if cart_count %}<span class="cart-badge">{{ cart_count }}</span>{% endif %}
+      </a>
+      {% endif %}
+    </div>
   </div>
 </header>

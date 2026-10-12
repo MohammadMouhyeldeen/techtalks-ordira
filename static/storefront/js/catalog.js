@@ -64,32 +64,4 @@
     });
   });
 
-  /* ---------- Quick add-to-cart from the grid ----------
-     KNOWN LIMITATION (by design, for this sprint): cosmetic-only (icon
-     pulse + toast), no real cart — see the matching note in
-     product-detail.js. Not shared with that page's Add to Cart state. */
-  const toast = document.getElementById('cartToast');
-  const toastText = document.getElementById('cartToastText');
-  let toastTimer = null;
-
-  const showToast = (message) => {
-    if (!toast) return;
-    if (toastText) toastText.textContent = message;
-    toast.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2200);
-  };
-
-  document.querySelectorAll('.product-card__add').forEach((btn) => {
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      const card = btn.closest('.product-card');
-      const name = card?.querySelector('.product-card__name')?.textContent.trim() || 'Item';
-      btn.classList.remove('is-added');
-      requestAnimationFrame(() => btn.classList.add('is-added'));
-      showToast(`Added ${name} to cart`);
-      setTimeout(() => btn.classList.remove('is-added'), 500);
-    });
-  });
-
 })();

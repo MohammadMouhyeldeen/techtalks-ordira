@@ -1,0 +1,57 @@
+{% extends "storefront/base_public.html" %}
+{% load static %}
+
+{% block title %}Order Confirmation — {{ shop.name|default:"Sara's Closet" }}{% endblock %}
+{% block meta_description %}Order confirmation preview for {{ shop.name|default:"Sara's Closet" }}.{% endblock %}
+
+{% block content %}
+
+<div class="container order-success-page">
+
+  <div class="order-success-hero">
+    <span class="order-success-hero__icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <h1>Order received</h1>
+    <p>Order <strong>{{ order.order_number }}</strong> · {{ order.get_status_display }}</p>
+  </div>
+
+  {% include "storefront/_order_overview.html" %}
+
+  <div class="order-success-page__actions">
+    <a href="{% url 'track_order' shop.slug order.tracking_token %}" class="btn btn-secondary btn-lg">
+      Track your order
+    </a>
+    <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-primary btn-lg">
+      Back to shop
+    </a>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const el = document.querySelector(".cart-summary__total-value[data-count]");
+    if (!el || prefersReducedMotion) return;
+
+    const target = parseFloat(el.getAttribute("data-count")) || 0;
+    const duration = 900;
+    const start = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = (target * eased).toFixed(2);
+      if (progress < 1) requestAnimationFrame(tick);
+      else el.textContent = target.toFixed(2);
+    };
+
+    el.textContent = "0.00";
+    requestAnimationFrame(tick);
+  })();
+</script>
+{% endblock %}

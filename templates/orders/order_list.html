@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Orders | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'orders/css/orders.css' %}?v=3">
+{% endblock %}
+
+{% block content %}
+
+<div class="orders-page">
+    <div class="orders-header">
+        <div>
+            <h1>Orders</h1>
+            <p>View and manage orders placed with {{ shop.name }}.</p>
+        </div>
+    </div>
+
+    <form method="get" class="order-filter">
+        <label for="status">Filter by status</label>
+
+        <select
+            id="status"
+            name="status"
+            onchange="this.form.submit()"
+        >
+            <option value="">All statuses</option>
+
+            {% for value, label in status_choices %}
+                <option
+                    value="{{ value }}"
+                    {% if selected_status == value %}selected{% endif %}
+                >
+                    {{ label }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <noscript>
+            <button type="submit">Apply filter</button>
+        </noscript>
+    </form>
+
+    {% if orders %}
+        <div class="orders-table-wrapper">
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Order number</th>
+                        <th>Customer</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for order in orders %}
+                        <tr>
+                            <td>
+                                <strong>{{ order.order_number }}</strong>
+                            </td>
+
+                            <td>{{ order.customer_name_snapshot }}</td>
+
+                            <td>
+                                {{ order.total }} {{ order.currency }}
+                            </td>
+
+                            <td>
+                                <span class="order-status order-status-{{ order.status|lower }}">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </td>
+
+                            <td>
+                                {{ order.created_at|date:"M d, Y H:i" }}
+                            </td>
+
+                            <td>
+                                <a
+                                    class="order-link"
+                                    href="{% url 'orders:order-detail' shop_pk=shop.pk order_pk=order.pk %}"
+                                >
+                                    View details
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="orders-empty">
+            <h2>No orders found</h2>
+
+            {% if selected_status %}
+                <p>No orders currently match this status.</p>
+
+                <a
+                    href="{% url 'orders:order-list' shop_pk=shop.pk %}"
+                    class="order-link"
+                >
+                    View all orders
+                </a>
+            {% else %}
+                <p>Orders placed by customers will appear here.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

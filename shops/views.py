@@ -1,13 +1,24 @@
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render, get_object_or_404
+from django.db import IntegrityError, transaction
 from django.http import HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from accounts.models import User
-from .forms import ShopSetupForm, ShopSettingsForm, SubscriptionForm
-from .helpers import get_dashboard_stats, is_catalog_public
-from .models import Shop, Subscription
+from orders.models import Order
+
+from .forms import (
+    DeliveryZoneForm,
+    PaymentMethodSettingsForm,
+    ShopSettingsForm,
+    ShopSetupForm,
+    SubscriptionForm,
+)
+from .helpers import get_dashboard_stats, is_catalog_public, subscription_status
+from .models import DeliveryZone, Shop, Subscription, ShopPaymentMethod
+
+
 
 
 
@@ -31,6 +42,37 @@ def shop_settings(request):
     return render(request, "shops/settings.html", {"form": form, "shop": shop})
 
 
+
+@login_required
+def payment_method_settings(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    form = PaymentMethodSettingsForm(
+        request.POST or None,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(
+            request,
+            "Payment methods updated.",
+        )
+        return redirect(
+            "shops:payment-method-settings",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "shops/payment_method_settings.html",
+        {
+            "shop": shop,
+            "form": form,
+        },
+    )
+
+
 @login_required
 def shop_setup(request):
     if request.user.role != User.Role.SHOP_OWNER:
@@ -45,7 +87,13 @@ def shop_setup(request):
         if form.is_valid():
             shop = form.save(commit=False)
             shop.owner = request.user
-            shop.save()
+            with transaction.atomic():
+                shop.save()
+                ShopPaymentMethod.objects.create(
+                    shop=shop,
+                    method_name=ShopPaymentMethod.MethodName.CASH,
+                    enabled=True,
+                )
 
             return redirect("shops:dashboard")
     else:
@@ -59,6 +107,13 @@ def _require_admin(request):
         return HttpResponseForbidden("Admin access required.")
 
     return None
+
+def get_owner_shop(request, shop_pk):
+    return get_object_or_404(
+        Shop,
+        pk=shop_pk,
+        owner=request.user,
+    )
 
 
 @login_required
@@ -77,13 +132,26 @@ def subscription_list(request):
         .select_related("shop")
     )
 
-    active_by_shop = {}
+    non_active_subscriptions = (
+        Subscription.objects
+        .exclude(status=Subscription.Status.ACTIVE)
+        .order_by("-starts_on", "-id")
+        .select_related("shop")
+    )
+
+    subscription_by_shop = {}
+    has_active_by_shop = {}
 
     for subscription in active_subscriptions:
-        active_by_shop.setdefault(
-            subscription.shop_id,
-            subscription,
-        )
+        shop_id = subscription.shop_id
+        if shop_id not in subscription_by_shop:
+            subscription_by_shop[shop_id] = subscription
+        has_active_by_shop[shop_id] = True
+
+    for subscription in non_active_subscriptions:
+        shop_id = subscription.shop_id
+        if shop_id not in subscription_by_shop:
+            subscription_by_shop[shop_id] = subscription
 
     shop_rows = []
 
@@ -91,7 +159,8 @@ def subscription_list(request):
         shop_rows.append(
             {
                 "shop": shop,
-                "active_subscription": active_by_shop.get(shop.id),
+                "subscription": subscription_by_shop.get(shop.id),
+                "has_active": has_active_by_shop.get(shop.id, False),
             }
         )
 
@@ -114,16 +183,20 @@ def subscription_create(request, shop_pk):
     shop = get_object_or_404(Shop, pk=shop_pk)
 
     if request.method == "POST":
-        form = SubscriptionForm(request.POST)
+        form = SubscriptionForm(request.POST, shop=shop)
 
         if form.is_valid():
             subscription = form.save(commit=False)
             subscription.shop = shop
-            subscription.save()
-
-            return redirect("shops:subscription-list")
+            try:
+                with transaction.atomic():
+                    subscription.save()
+            except IntegrityError:
+                form.add_error(None, "This shop already has an active subscription.")
+            else:
+                return redirect("shops:subscription-list")
     else:
-        form = SubscriptionForm()
+        form = SubscriptionForm(shop=shop)
 
     return render(
         request,
@@ -152,14 +225,19 @@ def subscription_edit(request, subscription_pk):
         form = SubscriptionForm(
             request.POST,
             instance=subscription,
+            shop=subscription.shop,
         )
 
         if form.is_valid():
-            form.save()
-
-            return redirect("shops:subscription-list")
+            try:
+                with transaction.atomic():
+                    form.save()
+            except IntegrityError:
+                form.add_error(None, "This shop already has an active subscription.")
+            else:
+                return redirect("shops:subscription-list")
     else:
-        form = SubscriptionForm(instance=subscription)
+        form = SubscriptionForm(instance=subscription, shop=subscription.shop)
 
     return render(
         request,
@@ -199,6 +277,12 @@ def dashboard(request):
         else False
     )
 
+    subscription_status_value = (
+        subscription_status(shop)
+        if shop is not None
+        else "NONE"
+    )
+
     is_shop_owner = request.user.role == User.Role.SHOP_OWNER
 
     return render(
@@ -207,6 +291,130 @@ def dashboard(request):
         {
             **stats,
             "has_active_subscription": has_active_subscription,
+            "subscription_status": subscription_status_value,
             "is_shop_owner": is_shop_owner,
         },
+    )
+
+
+@login_required
+def delivery_zone_list(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    zones = DeliveryZone.objects.filter(
+        shop=shop,
+    )
+
+    return render(
+        request,
+        "shops/delivery_zone_list.html",
+        {
+            "shop": shop,
+            "zones": zones,
+        },
+    )
+
+
+@login_required
+def delivery_zone_create(request, shop_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    form = DeliveryZoneForm(
+        request.POST or None,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        zone = form.save(commit=False)
+        zone.shop = shop
+        zone.save()
+
+        messages.success(
+            request,
+            "Delivery zone created successfully.",
+        )
+
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "shops/delivery_zone_form.html",
+        {
+            "shop": shop,
+            "form": form,
+            "page_title": "Create delivery zone",
+        },
+    )
+
+
+@login_required
+def delivery_zone_edit(request, shop_pk, zone_pk):
+    shop = get_owner_shop(request, shop_pk)
+
+    zone = get_object_or_404(
+        DeliveryZone,
+        pk=zone_pk,
+        shop=shop,
+    )
+
+    form = DeliveryZoneForm(
+        request.POST or None,
+        instance=zone,
+        shop=shop,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+
+        messages.success(
+            request,
+            "Delivery zone updated successfully.",
+        )
+
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
+    return render(
+        request,
+        "shops/delivery_zone_form.html",
+        {
+            "shop": shop,
+            "zone": zone,
+            "form": form,
+            "page_title": "Edit delivery zone",
+        },
+    )
+
+
+@login_required
+@require_POST
+def delivery_zone_delete(request, shop_pk, zone_pk):
+    shop = get_owner_shop(request, shop_pk)
+    zone = get_object_or_404(
+        DeliveryZone,
+        pk=zone_pk,
+        shop=shop,
+    )
+
+    if Order.objects.filter(delivery_zone=zone).exists():
+        messages.warning(
+            request,
+            "This delivery zone is used by existing orders. "
+            "Deactivate it instead of deleting it.",
+        )
+        return redirect(
+            "shops:delivery-zone-list",
+            shop_pk=shop.pk,
+        )
+
+    zone.delete()
+    messages.success(request, "Delivery zone deleted successfully.")
+    return redirect(
+        "shops:delivery-zone-list",
+        shop_pk=shop.pk,
     )

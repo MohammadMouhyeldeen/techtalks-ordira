@@ -2,7 +2,9 @@ import re
 
 from django import forms
 
-from .models import Shop, Subscription
+from django.db import transaction
+
+from .models import DeliveryZone, Shop, Subscription, ShopPaymentMethod
 
 
 class ShopContactLogoCleanMixin:
@@ -135,6 +137,63 @@ class ShopSettingsForm(ShopContactLogoCleanMixin, forms.ModelForm):
         }
 
 
+class PaymentMethodSettingsForm(forms.Form):
+    METHOD_CHOICES = ShopPaymentMethod.MethodName.choices
+
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
+        if shop is None:
+            return
+
+        existing_methods = {
+            method.method_name: method.enabled
+            for method in ShopPaymentMethod.objects.filter(shop=shop)
+        }
+
+        for method_value, method_label in self.METHOD_CHOICES:
+            field_name = method_value.lower()
+
+            self.fields[field_name] = forms.BooleanField(
+                required=False,
+                label=method_label,
+                widget=forms.CheckboxInput(),
+            )
+
+            self.initial[field_name] = existing_methods.get(
+                method_value,
+                method_value == ShopPaymentMethod.MethodName.CASH,
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not any(
+            cleaned_data.get(method_value.lower())
+            for method_value, _ in self.METHOD_CHOICES
+        ):
+            raise forms.ValidationError(
+                "At least one payment method must remain enabled."
+            )
+
+        return cleaned_data
+
+    def save(self):
+        if self.shop is None:
+            raise ValueError("A shop is required to save payment methods.")
+
+        with transaction.atomic():
+            for method_value, _ in self.METHOD_CHOICES:
+                ShopPaymentMethod.objects.update_or_create(
+                    shop=self.shop,
+                    method_name=method_value,
+                    defaults={
+                        "enabled": self.cleaned_data[method_value.lower()],
+                    },
+                )
+
+
 class SubscriptionForm(forms.ModelForm):
     class Meta:
         model = Subscription
@@ -153,6 +212,10 @@ class SubscriptionForm(forms.ModelForm):
             ),
         }
 
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
     def clean(self):
         cleaned_data = super().clean()
 
@@ -164,4 +227,60 @@ class SubscriptionForm(forms.ModelForm):
                 "End date cannot be before start date."
             )
 
+        status = cleaned_data.get("status")
+        if status == Subscription.Status.ACTIVE:
+            shop = self.shop
+            if shop is None and self.instance is not None and self.instance.pk:
+                shop = self.instance.shop_id
+            if shop is not None:
+                qs = Subscription.objects.filter(
+                    shop=shop,
+                    status=Subscription.Status.ACTIVE,
+                )
+                if self.instance is not None and self.instance.pk:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    raise forms.ValidationError(
+                        "This shop already has an active subscription."
+                    )
+
         return cleaned_data
+
+
+class DeliveryZoneForm(forms.ModelForm):
+    class Meta:
+        model = DeliveryZone
+        fields = [
+            "area_name",
+            "fee",
+            "is_active",
+        ]
+        labels = {
+            "fee": "Fee (USD)",
+        }
+        help_texts = {
+            "fee": "Enter the fee in USD. If a customer checks out in LBP, it's converted automatically at your shop's exchange rate.",
+        }
+
+    def __init__(self, *args, shop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shop = shop
+
+    def clean_area_name(self):
+        area_name = self.cleaned_data["area_name"].strip()
+
+        if self.shop and area_name:
+            zones = DeliveryZone.objects.filter(
+                shop=self.shop,
+                area_name__iexact=area_name,
+            )
+
+            if self.instance.pk:
+                zones = zones.exclude(pk=self.instance.pk)
+
+            if zones.exists():
+                raise forms.ValidationError(
+                    "A delivery zone with this name already exists in your shop."
+                )
+
+        return area_name
