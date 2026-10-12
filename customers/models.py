@@ -1,5 +1,44 @@
+import re
+
+from django.core.exceptions import ValidationError
 from django.db import models
 
+
+def normalize_phone_number(value: str) -> str:
+    """Normalize Lebanese local and international phone numbers."""
+
+    phone = re.sub(r"[\s()+\-]", "", str(value or ""))
+
+    if not phone:
+        raise ValidationError("Phone number is required.")
+
+    if not phone.isascii() or not phone.isdigit():
+        raise ValidationError("Enter a valid phone number.")
+
+    # Convert international dialing prefix 00 to its country-code form.
+    if phone.startswith("00"):
+        phone = phone[2:]
+
+    # Convert a Lebanese local number to country-code form.
+    if phone.startswith("0"):
+        phone = f"961{phone[1:]}"
+    elif len(phone) in (7, 8):
+        # Bare 7–8 digit numbers are treated as Lebanese local numbers.
+        phone = f"961{phone}"
+
+    # Lebanese numbers must be 10–11 digits including 961.
+    if phone.startswith("961"):
+        if not 10 <= len(phone) <= 11:
+            raise ValidationError(
+                "Enter a valid Lebanese phone number with "
+                "10 or 11 digits including country code 961."
+            )
+    elif not 10 <= len(phone) <= 15:
+        raise ValidationError(
+            "Enter a valid phone number with 10 to 15 digits."
+        )
+
+    return phone
 
 class Customer(models.Model):
     shop = models.ForeignKey(
@@ -18,6 +57,10 @@ class Customer(models.Model):
                 name="unique_customer_phone_per_shop",
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        self.phone_number = normalize_phone_number(self.phone_number)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.full_name} - {self.phone_number}"

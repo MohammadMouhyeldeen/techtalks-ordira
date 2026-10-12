@@ -1905,7 +1905,7 @@ class DeliveryZoneTests(TestCase):
         customer = Customer.objects.create(
             shop=self.shop,
             full_name="Test Customer",
-            phone_number="961701234567",
+            phone_number="96170123456",
         )
 
         payment_method = ShopPaymentMethod.objects.create(

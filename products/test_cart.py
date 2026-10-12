@@ -504,6 +504,22 @@ class CheckoutViewTests(TestCase):
         self.assertContains(response, "Not enough stock")
         self.assertEqual(Order.objects.count(), 0)
 
+    def test_invalid_phone_rerenders_with_error_and_creates_no_order(self):
+        self._add_to_cart()
+
+        response = self.client.post(
+            self.checkout_url,
+            self._valid_post_data(customer_phone="not-a-phone"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter a valid phone number.")
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(self.shop.customers.count(), 0)
+
+        self.variant.refresh_from_db()
+        self.assertEqual(self.variant.stock_quantity, 10)
+
     def test_missing_zone_and_address_for_delivery_rerenders_with_errors(self):
         self._add_to_cart()
 

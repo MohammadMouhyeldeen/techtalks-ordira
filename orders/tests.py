@@ -518,6 +518,152 @@ class CheckoutServiceTests(TestCase):
             "Expected the ProductVariant query to use FOR UPDATE.",
         )
 
+    def test_equivalent_lebanese_phone_formats_reuse_one_customer(self):
+        phone_formats = [
+            "70 123 456",
+            "70123456",
+            "+961 70 123 456",
+            "0070123456",
+        ]
+
+        orders = []
+        for phone in phone_formats:
+            order = self.create_delivery_order(
+                customer_phone=phone,
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+            orders.append(order)
+
+        self.assertEqual(
+            Customer.objects.filter(shop=self.shop).count(),
+            1,
+        )
+
+        customer = Customer.objects.get(shop=self.shop)
+        self.assertEqual(customer.phone_number, "96170123456")
+
+        for order in orders:
+            self.assertEqual(order.customer_id, customer.pk)
+            self.assertEqual(
+                order.customer_phone_snapshot,
+                "96170123456",
+            )
+
+    def test_equivalent_local_three_prefix_formats_reuse_one_customer(self):
+        phone_formats = [
+            "03 123 456",
+            "03123456",
+            "+961 3 123 456",
+            "00961 3 123 456",
+        ]
+
+        for phone in phone_formats:
+            self.create_delivery_order(
+                customer_phone=phone,
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        self.assertEqual(
+            Customer.objects.filter(shop=self.shop).count(),
+            1,
+        )
+        customer = Customer.objects.get(shop=self.shop)
+        self.assertEqual(customer.phone_number, "9613123456")
+
+    def test_same_normalized_phone_creates_separate_customers_per_shop(self):
+        other_shop = Shop.objects.create(
+            owner=self.owner,
+            name="Second Shop",
+            slug="second-phone-test-shop",
+            pickup_available=True,
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        other_category = Category.objects.create(
+            shop=other_shop,
+            name="Other Clothing",
+        )
+        other_product = Product.objects.create(
+            shop=other_shop,
+            category=other_category,
+            name="Other T-shirt",
+        )
+        other_variant = ProductVariant.objects.create(
+            product=other_product,
+            color="Blue",
+            size="M",
+            unit_price=Decimal("8.00"),
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=5,
+        )
+        other_payment_method = ShopPaymentMethod.objects.create(
+            shop=other_shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            enabled=True,
+        )
+
+        order_a = self.create_delivery_order(
+            customer_phone="70 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            delivery_zone=None,
+            address="",
+            items=[
+                {
+                    "variant_id": self.usd_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+        )
+
+        order_b = create_order(
+            shop=other_shop,
+            customer_name="Same Customer",
+            customer_phone="+961 70 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            selected_payment_method=other_payment_method,
+            items=[
+                {
+                    "variant_id": other_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+            currency=Order.Currency.USD,
+        )
+
+        customers = Customer.objects.filter(
+            phone_number="96170123456",
+        )
+        self.assertEqual(customers.count(), 2)
+        self.assertNotEqual(order_a.customer.shop_id, order_b.customer.shop_id)
+
+    def test_invalid_phone_is_rejected_without_creating_order(self):
+        original_stock = self.usd_variant.stock_quantity
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Enter a valid phone number.",
+        ):
+            self.create_delivery_order(customer_phone="not-a-phone")
+
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(Customer.objects.count(), 0)
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+        self.usd_variant.refresh_from_db()
+        self.assertEqual(
+            self.usd_variant.stock_quantity,
+            original_stock,
+        )
+
 
     def test_transition_new_to_preparing(self):
         order = self.create_delivery_order()
@@ -1216,3 +1362,63 @@ class OrderTrackingViewTests(TestCase):
         )
 
         self.assertIn("Not available", html)
+
+
+class OrderCustomerIsolationTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "order-owner@example.com",
+            "testpassword123",
+            full_name="Order Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.shop_a = Shop.objects.create(
+            owner=self.owner,
+            name="Shop A",
+            slug="order-shop-a",
+            exchange_rate_lbp_per_usd=89500,
+        )
+
+        self.shop_b = Shop.objects.create(
+            owner=self.owner,
+            name="Shop B",
+            slug="order-shop-b",
+            exchange_rate_lbp_per_usd=89500,
+        )
+
+        self.payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop_a,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+        )
+
+        self.customer_from_shop_b = Customer.objects.create(
+            shop=self.shop_b,
+            full_name="Shop B Customer",
+            phone_number="+961 70-123-(456)",
+        )
+
+    def test_order_rejects_customer_from_another_shop(self):
+        order = Order(
+            shop=self.shop_a,
+            customer=self.customer_from_shop_b,
+            selected_payment_method=self.payment_method,
+            order_number="TEST-001",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            customer_name_snapshot=self.customer_from_shop_b.full_name,
+            customer_phone_snapshot=self.customer_from_shop_b.phone_number,
+            items_total=Decimal("0.00"),
+            total=Decimal("0.00"),
+            currency=Order.Currency.USD,
+            fx_rate_snapshot=Decimal("89500.00"),
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            order.full_clean()
+
+        self.assertIn("customer", context.exception.message_dict)
+        self.assertEqual(
+            context.exception.message_dict["customer"][0],
+            "Customer must belong to the selected shop.",
+        )
