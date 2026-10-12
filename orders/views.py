@@ -3,6 +3,7 @@ import re
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -10,6 +11,10 @@ from shops.decorators import public_shop_required
 from shops.models import Shop
 
 from payments.forms import RecordPaymentForm
+from payments.invoice_service import (
+    build_invoice_pdf,
+    get_or_create_invoice,
+)
 
 from .models import Order
 from .services import cancel_order, transition_order_status
@@ -174,6 +179,28 @@ def merchant_order_detail(request, shop_pk, order_pk):
         },
     )
 
+@login_required
+def merchant_order_invoice_pdf(request, shop_pk, order_pk):
+    shop = _get_owner_shop(request, shop_pk)
+
+    order = get_object_or_404(
+        Order,
+        pk=order_pk,
+        shop=shop,
+    )
+
+    invoice, locked_order = get_or_create_invoice(order)
+    pdf_content = build_invoice_pdf(invoice, locked_order)
+
+    response = HttpResponse(
+        pdf_content,
+        content_type="application/pdf",
+    )
+    response["Content-Disposition"] = (
+        f'attachment; filename="{invoice.invoice_number}.pdf"'
+    )
+
+    return response
 
 @login_required
 @require_POST
