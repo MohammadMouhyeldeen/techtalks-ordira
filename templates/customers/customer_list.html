@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Customers | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'orders/css/orders.css' %}?v=3">
+{% endblock %}
+
+{% block content %}
+
+<div class="orders-page">
+    <div class="orders-header">
+        <div>
+            <h1>Customers</h1>
+            <p>Everyone who has placed an order with {{ shop.name }}.</p>
+        </div>
+    </div>
+
+    {% if customers %}
+        <div class="orders-table-wrapper">
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Orders</th>
+                        <th>Last order</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for customer in customers %}
+                        <tr>
+                            <td>
+                                <strong>{{ customer.full_name }}</strong>
+                            </td>
+
+                            <td>{{ customer.phone_number }}</td>
+
+                            <td>{{ customer.order_count }}</td>
+
+                            <td>
+                                {% if customer.last_order_at %}
+                                    {{ customer.last_order_at|date:"M d, Y H:i" }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <a
+                                    class="order-link"
+                                    href="{% url 'customers:detail' shop_pk=shop.pk customer_pk=customer.pk %}"
+                                >
+                                    View details
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="orders-empty">
+            <h2>No customers yet</h2>
+            <p>Customers will appear here once someone places an order with {{ shop.name }}.</p>
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}
