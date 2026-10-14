@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'notifications/css/notifications.css' %}"
+>
+{% endblock %}
+
+{% block title %}Notifications | Ordira{% endblock %}
+
+{% block content %}
+
+<div class="notifications-page">
+    <div class="notifications-header">
+        <div>
+            <h1>Notifications</h1>
+            <p>Review your shop notifications and inventory alerts.</p>
+        </div>
+
+        {% if unread_notifications %}
+            <form
+                method="post"
+                action="{% url 'notifications:mark-all-read' %}"
+            >
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">
+                    Mark all as read
+                </button>
+            </form>
+        {% endif %}
+    </div>
+
+    <div class="notifications-list">
+        {% for notification in notifications %}
+            <article
+                class="notification-item{% if not notification.is_read %} notification-item-unread{% endif %}"
+            >
+                <div>
+                    <div class="notification-item-header">
+                        <strong>
+                            {{ notification.get_notification_type_display }}
+                        </strong>
+
+                        {% if notification.is_read %}
+                            <span class="notification-status">
+                                Read
+                            </span>
+                        {% else %}
+                            <span class="notification-status notification-status-unread">
+                                Unread
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <p>{{ notification.message }}</p>
+
+                    <time datetime="{{ notification.created_at|date:'c' }}">
+                        {{ notification.created_at|date:"M d, Y H:i" }}
+                    </time>
+                </div>
+            </article>
+        {% empty %}
+            <div class="notifications-empty">
+                <h2>No notifications yet</h2>
+                <p>Your shop notifications will appear here.</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

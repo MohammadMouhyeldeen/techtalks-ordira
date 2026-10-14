@@ -23,7 +23,8 @@
     <div class="navbar-right">
 
         <!-- Notifications -->
-        <button
+        <a
+            href="{% url 'notifications:list' %}"
             class="notification-btn"
             aria-label="Notifications">
             <svg width="19" height="19"><use href="#i-bell"/></svg>
@@ -32,7 +33,7 @@
                     {{ unread_notifications }}
                 </span>
             {% endif %}
-        </button>
+        </a>
 
         <!-- User -->
         <div class="user-menu" id="userMenu">

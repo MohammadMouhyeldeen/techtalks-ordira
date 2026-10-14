@@ -1,6 +1,8 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from notifications.services import notify_low_stock_if_crossed
+
 from .models import ProductVariant, StockMovement
 
 
@@ -27,7 +29,8 @@ def adjust_variant_stock(*, variant, change_qty, reason, created_by):
             "Invalid stock movement reason."
         )
 
-    new_quantity = locked_variant.stock_quantity + change_qty
+    previous_quantity = locked_variant.stock_quantity
+    new_quantity = previous_quantity + change_qty
 
     if new_quantity < 0:
         raise ValidationError(
@@ -36,6 +39,11 @@ def adjust_variant_stock(*, variant, change_qty, reason, created_by):
 
     locked_variant.stock_quantity = new_quantity
     locked_variant.save(update_fields=["stock_quantity"])
+
+    notify_low_stock_if_crossed(
+        variant=locked_variant,
+        previous_quantity=previous_quantity,
+    )
 
     movement = StockMovement.objects.create(
         variant=locked_variant,

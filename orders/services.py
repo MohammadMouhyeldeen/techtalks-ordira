@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from customers.models import Customer, normalize_phone_number
+from notifications.services import notify_low_stock_if_crossed
 from products.models import ProductVariant, StockMovement
 
 from .models import Order, OrderItem
@@ -284,8 +285,14 @@ def create_order(
             line_total=prepared_item["line_total"],
         )
 
+        previous_quantity = variant.stock_quantity
         variant.stock_quantity -= quantity
         variant.save(update_fields=["stock_quantity"])
+
+        notify_low_stock_if_crossed(
+            variant=variant,
+            previous_quantity=previous_quantity,
+        )
 
         StockMovement.objects.create(
             variant=variant,

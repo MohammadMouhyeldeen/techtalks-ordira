@@ -77,6 +77,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'shops.context_processors.current_shop',
                 'shops.context_processors.storefront_cart',
+                'notifications.context_processors.unread_notifications',
             ],
         },
     },
