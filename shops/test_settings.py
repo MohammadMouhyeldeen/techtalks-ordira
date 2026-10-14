@@ -179,7 +179,7 @@ class ShopSettingsOwnerIsolationTests(TestCase):
 
         self.client.post(self.settings_url, {
             "name": "Shop B Renamed",
-            "whatsapp": "",
+            "whatsapp": "96170123456",
             "instagram": "",
         })
 
