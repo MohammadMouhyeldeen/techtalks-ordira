@@ -1196,6 +1196,134 @@ class OrderSuccessViewTests(TestCase):
         self.assertEqual(_payment_method_display(order), "Not available")
 
 
+class OrderSuccessWhatsAppTests(TestCase):
+    """SCRUM-89: the success page's "contact the seller" link — always
+    built from the order's own shop, digits only, never another shop's."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "whatsapp-owner@example.com", "testpassword123",
+            full_name="WhatsApp Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner, name="Sara's Closet", slug="saras-closet-whatsapp",
+            exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
+            whatsapp="96170123456",
+        )
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        self.category = Category.objects.create(shop=self.shop, name="Clothing")
+        self.product = Product.objects.create(
+            shop=self.shop, category=self.category, name="Denim Jacket",
+        )
+        self.variant = ProductVariant.objects.create(
+            product=self.product, color="Indigo", size="M",
+            unit_price="45.00", stock_quantity=10,
+        )
+        self.payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
+        )
+
+    def _checkout(self, shop=None, variant=None, payment_method=None, phone="70999888"):
+        shop = shop or self.shop
+        variant = variant or self.variant
+        payment_method = payment_method or self.payment_method
+
+        self.client.post(reverse("cart_add", args=[shop.slug]), {
+            "variant_id": variant.pk, "quantity": 1,
+        })
+        self.client.post(reverse("checkout", args=[shop.slug]), {
+            "customer_name": "John Shopper",
+            "customer_phone": phone,
+            "fulfillment_type": "PICKUP",
+            "selected_payment_method": payment_method.pk,
+            "currency": "USD",
+        })
+        return Order.objects.filter(shop=shop).latest("created_at")
+
+    def test_success_page_link_has_shops_digits_and_no_text_param(self):
+        order = self._checkout()
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertContains(response, "https://wa.me/96170123456")
+        self.assertNotContains(response, "text=")
+
+    def test_two_shops_each_get_their_own_number(self):
+        order = self._checkout()
+
+        other_owner = User.objects.create_user(
+            "whatsapp-other-owner@example.com", "testpassword123",
+            full_name="Other Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        other_shop = Shop.objects.create(
+            owner=other_owner, name="Other Shop", slug="other-shop-whatsapp",
+            exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
+            whatsapp="96103987654",
+        )
+        Subscription.objects.create(
+            shop=other_shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        other_category = Category.objects.create(shop=other_shop, name="Accessories")
+        other_product = Product.objects.create(
+            shop=other_shop, category=other_category, name="Leather Belt",
+        )
+        other_variant = ProductVariant.objects.create(
+            product=other_product, color="Brown", size="M",
+            unit_price="20.00", stock_quantity=5,
+        )
+        other_payment_method = ShopPaymentMethod.objects.create(
+            shop=other_shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
+        )
+        other_order = self._checkout(
+            shop=other_shop, variant=other_variant, payment_method=other_payment_method,
+            phone="71222333",
+        )
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+        other_response = self.client.get(
+            reverse("order_success", args=[other_shop.slug, other_order.tracking_token])
+        )
+
+        self.assertContains(response, "https://wa.me/96170123456")
+        self.assertNotContains(response, "https://wa.me/96103987654")
+        self.assertContains(other_response, "https://wa.me/96103987654")
+        self.assertNotContains(other_response, "https://wa.me/96170123456")
+
+    def test_shop_with_no_whatsapp_number_renders_without_error(self):
+        self.shop.whatsapp = ""
+        self.shop.save(update_fields=["whatsapp"])
+        order = self._checkout()
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "wa.me")
+        self.assertContains(response, "contact")
+
+    def test_order_exists_in_database_when_success_page_loads(self):
+        order = self._checkout()
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
+
 class OrderTrackingViewTests(TestCase):
     """The persistent "where's my order" page — same lookup rules as
     order_success (tracking_token + shop, never pk), plus the status/

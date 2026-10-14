@@ -1,3 +1,5 @@
+import re
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -22,6 +24,16 @@ def _payment_method_display(order):
     if method is None:
         return "Not available"
     return method.get_method_name_display()
+
+
+def _shop_whatsapp_link(shop):
+    """wa.me takes digits only — no +, spaces, dashes or parens. shop.whatsapp
+    is already normalized to that shape by ShopContactLogoCleanMixin.clean_whatsapp
+    when set through the settings form, but this strips non-digits again
+    anyway rather than trusting every row was written that way, and returns
+    None (never a broken link) when the shop hasn't set one at all."""
+    digits = re.sub(r"\D", "", shop.whatsapp)
+    return f"https://wa.me/{digits}" if digits else None
 
 
 def _order_context(order):
@@ -57,6 +69,7 @@ def order_success(request, shop, tracking_token):
     return render(request, "storefront/order_success.html", {
         "shop": shop,
         "order": order,
+        "whatsapp_link": _shop_whatsapp_link(shop),
         **_order_context(order),
     })
 
