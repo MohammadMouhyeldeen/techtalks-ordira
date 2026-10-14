@@ -1422,3 +1422,4 @@ class OrderCustomerIsolationTests(TestCase):
             context.exception.message_dict["customer"][0],
             "Customer must belong to the selected shop.",
         )
+
