@@ -26,6 +26,14 @@
 {% endif %}
 
 {% if shop %}
+{% if not shop.whatsapp %}
+<div class="card" role="status" style="margin-bottom:24px; padding:16px 20px;">
+    <p style="margin:0;">
+        Add your WhatsApp number so customers can reach you
+        <a href="{% url 'shops:settings' %}">Settings</a>
+    </p>
+</div>
+{% endif %}
 <div class="card settings-section settings-section--catalog-link" style="margin-bottom:24px;">
     <div class="settings-section__head">
         <span class="settings-section__icon"><svg width="18" height="18"><use href="#i-store"/></svg></span>

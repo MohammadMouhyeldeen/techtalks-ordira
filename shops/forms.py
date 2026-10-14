@@ -12,6 +12,10 @@ class ShopContactLogoCleanMixin:
 
     MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["whatsapp"].required = True
+
     def clean_whatsapp(self):
         whatsapp = self.cleaned_data.get("whatsapp", "").strip()
 
