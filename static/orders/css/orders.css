@@ -31,6 +31,14 @@
     gap: 20px;
 }
 
+.order-detail-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .orders-header h1,
 .order-detail-header h1 {
     margin: 0 0 8px;
@@ -400,6 +408,11 @@
     .order-detail-header {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .order-detail-controls {
+    justify-content: flex-start;
+    width: 100%;
     }
 
     .order-filter {
