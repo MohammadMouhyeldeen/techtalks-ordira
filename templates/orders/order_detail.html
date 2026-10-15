@@ -26,9 +26,18 @@
             </p>
         </div>
 
-        <span class="order-status order-status-{{ order.status|lower }}">
-            {{ order.get_status_display }}
-        </span>
+                <div class="order-detail-controls">
+            <a
+                href="{% url 'orders:invoice-pdf' shop_pk=shop.pk order_pk=order.pk %}"
+                class="btn btn-primary"
+            >
+                Download invoice
+            </a>
+
+            <span class="order-status order-status-{{ order.status|lower }}">
+                {{ order.get_status_display }}
+            </span>
+        </div>
     </div>
 
     {% if order.status == "NEW" or order.status == "PREPARING" or order.status == "HANDED_TO_DELIVERY" %}
