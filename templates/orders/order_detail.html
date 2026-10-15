@@ -68,30 +68,33 @@
                 {% endif %}
             </form>
 
-            <form
-                method="post"
-                action="{% url 'orders:order-action' shop_pk=shop.pk order_pk=order.pk %}"
-            >
-                {% csrf_token %}
-                <input type="hidden" name="action" value="cancel">
+           
+<form
+    method="post"
+    action="{% url 'orders:order-action' shop_pk=shop.pk order_pk=order.pk %}"
+>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="cancel">
 
-                <div class="form-field">
-                    <label for="cancellation_reason">
-    Cancellation reason <span aria-hidden="true">*</span>
-</label>
-<p id="cancellation_reason_help">
-    Please explain why this order is being cancelled.
-</p>
-                    <textarea
-                        id="cancellation_reason"
-                        name="cancellation_reason"
-                        rows="3"
-                        required
-                    ></textarea>
-                </div>
+    <div class="form-field">
+        <label for="cancellation_reason">
+            Cancellation reason <span aria-hidden="true">*</span>
+        </label>
 
-                <button type="submit">Cancel Order</button>
-            </form>
+        <p id="cancellation_reason_help">
+            Please explain why this order is being cancelled.
+        </p>
+
+        <textarea
+            id="cancellation_reason"
+            name="cancellation_reason"
+            rows="3"
+            required
+            aria-describedby="cancellation_reason_help"
+        ></textarea>
+    </div>
+
+    <button type="submit">Cancel Order</button>
         </section>
     {% endif %}
 
