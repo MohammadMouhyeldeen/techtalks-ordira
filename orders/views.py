@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from shops.decorators import public_shop_required
 from shops.models import Shop
@@ -180,6 +180,7 @@ def merchant_order_detail(request, shop_pk, order_pk):
     )
 
 @login_required
+@require_GET
 def merchant_order_invoice_pdf(request, shop_pk, order_pk):
     shop = _get_owner_shop(request, shop_pk)
 

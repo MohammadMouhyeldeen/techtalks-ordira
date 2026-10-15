@@ -56,6 +56,7 @@ Task documentation is organized by sprint under `docs/tasks/`.
 #### Sprint 6
 
 - [SCRUM-95 — Low-Stock Notifications](tasks/sprint-6/SCRUM-95-low-stock-notifications.md)
+- [SCRUM-87 — Invoice PDF Download](tasks/sprint-6/SCRUM-87-invoice-pdf.md)
 
 ## Documentation structure
 
