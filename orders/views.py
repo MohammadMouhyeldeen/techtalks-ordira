@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -19,6 +20,8 @@ from payments.invoice_service import (
 from .models import Order
 from .services import cancel_order, transition_order_status
 
+EXPECTED_PAYMENT_PLACES = Decimal("0.01")
+
 
 def _payment_method_display(order):
     """selected_payment_method is PROTECT + NOT NULL today, so a shop can't
@@ -29,6 +32,35 @@ def _payment_method_display(order):
     if method is None:
         return "Not available"
     return method.get_method_name_display()
+
+
+def _expected_payment_amounts(order):
+    total = Decimal(order.total)
+    fx_rate = Decimal(order.fx_rate_snapshot)
+
+    if order.currency == Order.Currency.USD:
+        usd_amount = total
+        lbp_amount = total * fx_rate
+    else:
+        lbp_amount = total
+        usd_amount = total / fx_rate
+
+    return {
+        Order.Currency.USD: format(
+            usd_amount.quantize(
+                EXPECTED_PAYMENT_PLACES,
+                rounding=ROUND_HALF_UP,
+            ),
+            ".2f",
+        ),
+        Order.Currency.LBP: format(
+            lbp_amount.quantize(
+                EXPECTED_PAYMENT_PLACES,
+                rounding=ROUND_HALF_UP,
+            ),
+            ".2f",
+        ),
+    }
 
 
 def _shop_whatsapp_link(shop):
@@ -156,6 +188,8 @@ def merchant_order_detail(request, shop_pk, order_pk):
 
     payment = getattr(order, "payment", None)
 
+    expected_payment_amounts = _expected_payment_amounts(order)
+
     payment_form = None
 
     if payment is None and order.status != Order.Status.CANCELLED:
@@ -176,6 +210,8 @@ def merchant_order_detail(request, shop_pk, order_pk):
             "order": order,
             "payment": payment,
             "payment_form": payment_form,
+            "selected_payment_method_display": _payment_method_display(order),
+            "expected_payment_amounts": expected_payment_amounts,
         },
     )
 
