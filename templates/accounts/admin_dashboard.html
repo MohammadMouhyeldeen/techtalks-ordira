@@ -235,6 +235,20 @@
                                     Reissue Link
                                 </button>
                             </form>
+                            {% if active_user.role == "SHOP_OWNER" %}
+                            <form method="post"
+                                  action="{% url 'accounts:suspend_shop_owner' active_user.pk %}"
+                                  aria-label="Suspend {{ active_user.full_name }}">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn-reject"
+                                        id="suspend-{{ active_user.pk }}"
+                                        onclick="return confirm('Suspend {{ active_user.full_name|escapejs }}?')">
+                                    Suspend
+                                </button>
+                            </form>
+                            {% endif %}
+
                             {% else %}
                             <span style="color:var(--ink-300);font-size:0.85rem;">(you)</span>
                             {% endif %}
@@ -294,6 +308,86 @@
         {% endif %}
 
     </div>{# /.admin-card active #}
+
+    {# ---- Suspended Shop Owners (SCRUM-29) ---- #}
+    <div class="admin-card" style="margin-top:2.5rem;">
+        <header class="admin-page-header" style="padding:1.5rem 1.5rem 0;">
+            <h2 class="admin-page-title" style="font-size:1.15rem;">
+                Suspended Shop Owners
+            </h2>
+        </header>
+
+        {% if suspended_page_obj.object_list %}
+        <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Suspended shop owners">
+                <thead>
+                    <tr>
+                        <th scope="col">Name / Email</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for suspended_user in suspended_page_obj %}
+                    <tr>
+                        <td>
+                            <div class="admin-table-name">
+                                {{ suspended_user.full_name }}
+                            </div>
+                            <div class="admin-table-email">
+                                {{ suspended_user.email }}
+                            </div>
+                        </td>
+                        <td>
+                            <form method="post"
+                                  action="{% url 'accounts:reactivate_shop_owner' suspended_user.pk %}"
+                                  aria-label="Reactivate {{ suspended_user.full_name }}">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn-approve"
+                                        id="reactivate-{{ suspended_user.pk }}"
+                                        onclick="return confirm('Reactivate {{ suspended_user.full_name|escapejs }}?')">
+                                    Reactivate
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if suspended_page_obj.paginator.num_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Suspended shop owner pagination">
+            <span class="admin-pagination-count">
+                Page {{ suspended_page_obj.number }} of {{ suspended_page_obj.paginator.num_pages }}
+            </span>
+            <div class="admin-pagination-links">
+                {% if suspended_page_obj.has_previous %}
+                <a class="admin-pagination-link"
+                   href="?spage={{ suspended_page_obj.previous_page_number }}">
+                    &#8592; Prev
+                </a>
+                {% endif %}
+
+                {% if suspended_page_obj.has_next %}
+                <a class="admin-pagination-link"
+                   href="?spage={{ suspended_page_obj.next_page_number }}">
+                    Next &#8594;
+                </a>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="admin-empty" id="suspended-empty-state">
+            <h2 class="admin-empty-title">No suspended shop owners</h2>
+            <p class="admin-empty-text">
+                Suspended shop-owner accounts will appear here.
+            </p>
+        </div>
+        {% endif %}
+    </div>{# /.admin-card suspended #}
 
 </div>{# /.admin-layout #}
 {% endblock %}

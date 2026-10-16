@@ -440,6 +440,27 @@ class CheckoutViewTests(TestCase):
         data.update(overrides)
         return data
 
+    def test_suspended_owner_cannot_receive_checkout_order(self):
+        # Add an item while the shop owner is still active.
+        self._add_to_cart()
+
+        # Suspend the owner before checkout is submitted.
+        self.owner.status = User.Status.SUSPENDED
+        self.owner.save(update_fields=["status"])
+
+        response = self.client.post(
+            self.checkout_url,
+            self._valid_post_data(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "storefront/unavailable.html",
+        )
+        self.assertEqual(response.context["state"], "unavailable")
+        self.assertEqual(Order.objects.count(), 0)
+
     def test_empty_cart_redirects_to_cart_view_without_rendering_form(self):
         response = self.client.get(self.checkout_url)
 
