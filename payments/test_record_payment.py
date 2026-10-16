@@ -312,6 +312,7 @@ class RecordPaymentTests(TestCase):
         self.assertFalse(
             Payment.objects.filter(order=self.order).exists()
         )
+
     def test_payment_form_shows_order_total_and_checkout_method(self):
         self.client.force_login(self.owner)
 
@@ -392,6 +393,26 @@ class RecordPaymentTests(TestCase):
             response,
             'data-expected-usd="15.00"',
         )
+
+    def test_order_detail_handles_non_positive_fx_rate(self):
+        Order.objects.filter(pk=self.order.pk).update(
+            currency=Order.Currency.LBP,
+            fx_rate_snapshot=Decimal("0.00"),
+        )
+        self.order.refresh_from_db()
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.order_detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["expected_payment_amounts"],
+            {
+                Order.Currency.LBP: "15.00",
+            },
+        )
+        self.assertContains(response, "15.00 LBP")
     def test_non_owner_receives_404(self):
         other_owner = User.objects.create_user(
             email="other-owner@example.com",

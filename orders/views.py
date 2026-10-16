@@ -38,6 +38,17 @@ def _expected_payment_amounts(order):
     total = Decimal(order.total)
     fx_rate = Decimal(order.fx_rate_snapshot)
 
+    if fx_rate <= Decimal("0.00"):
+        return {
+            order.currency: format(
+                total.quantize(
+                    EXPECTED_PAYMENT_PLACES,
+                    rounding=ROUND_HALF_UP,
+                ),
+                ".2f",
+            ),
+        }
+
     if order.currency == Order.Currency.USD:
         usd_amount = total
         lbp_amount = total * fx_rate
