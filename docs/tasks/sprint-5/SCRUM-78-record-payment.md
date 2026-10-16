@@ -207,6 +207,20 @@ It verifies that:
 
 These checks prevent cross-shop access, duplicate records, disabled-method usage, overpayments, and payments on cancelled Orders.
 
+## SCRUM-96 follow-up: expected payment amount
+
+SCRUM-96 improved the merchant payment form by showing the information needed to record a full payment correctly.
+
+The form now displays:
+
+- The Order total and currency.
+- The payment method selected by the customer at checkout.
+- The expected amount in the currently selected payment currency.
+
+The amount field is initially prefilled with the full Order total in the Order’s currency. If the merchant selects the other currency, the expected amount is converted using the Order’s saved `fx_rate_snapshot`, and the amount field is updated accordingly.
+
+This change only improves the form and its presentation. The payment-saving behavior, full-payment validation, cross-currency rounding tolerance, and `PAID` status rule remain unchanged.
+
 ## Automated testing
 
 A dedicated test file was created:
@@ -231,6 +245,9 @@ The payment tests verify:
 - The payment endpoint rejects `GET`.
 - The public tracking page shows `Unpaid` before payment.
 - The public tracking page shows `Paid` after payment is recorded.
+- The form displays the Order total and the customer’s selected payment method.
+- The amount and currency fields are prefilled from the Order total.
+- Cross-currency expected amounts use the Order’s exchange-rate snapshot.
 
 The existing Order tracking test was also updated to expect the new `Unpaid` wording.
 
@@ -248,8 +265,8 @@ git diff --check
 
 Results:
 
-- All 15 dedicated payment-recording tests passed.
-- The complete project test suite passed: 446 tests.
+- All 18 dedicated payment-recording tests passed.
+- The complete project test suite passed: 516 tests.
 - Django’s system check identified no issues.
 - No missing migrations were detected.
 - No whitespace errors were found.
@@ -289,3 +306,5 @@ Ordira now supports owner-scoped manual payment recording.
 A Shop Owner can record a received payment directly from the merchant Order detail page. The system validates ownership, payment method, amount, currency, Order status, and duplicate submissions before saving the Payment.
 
 Currency conversion uses the Order’s saved exchange-rate snapshot, historical payment-method information is preserved, and customers can see an accurate `Paid` or `Unpaid` status through the public Order tracking page.
+
+The SCRUM-96 follow-up also makes the expected full-payment amount visible and keeps the amount field synchronized with the selected currency, helping merchants record the correct amount without changing the underlying payment rules.
