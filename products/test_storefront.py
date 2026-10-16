@@ -54,6 +54,23 @@ class PublicCatalogViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Linen Shirt")
 
+    def test_suspended_owner_shop_shows_unavailable_page(self):
+        self.owner.status = User.Status.SUSPENDED
+        self.owner.save(update_fields=["status"])
+
+        response = self.client.get(self.catalog_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "storefront/unavailable.html",
+        )
+        self.assertEqual(
+            response.context["state"],
+            "unavailable",
+        )
+        self.assertNotContains(response, "Linen Shirt")
+
     def test_products_from_other_shops_do_not_leak_in(self):
         other_owner = User.objects.create_user(
             "other-owner@example.com",
