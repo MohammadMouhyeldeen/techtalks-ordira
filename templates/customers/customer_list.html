@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'orders/css/orders.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'customers/css/customers.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -26,6 +27,7 @@
                         <th>Phone</th>
                         <th>Orders</th>
                         <th>Last order</th>
+                        <th>Outstanding balance</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -46,6 +48,18 @@
                                     {{ customer.last_order_at|date:"M d, Y H:i" }}
                                 {% else %}
                                     Never
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if customer.outstanding_balances %}
+                                    <ul class="balance-list">
+                                        {% for currency, amount in customer.outstanding_balances.items %}
+                                            <li>{{ amount }} {{ currency }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    0.00
                                 {% endif %}
                             </td>
 

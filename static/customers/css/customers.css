@@ -1,0 +1,32 @@
+/* Builds on top of orders/css/orders.css, which both customer pages
+   already load for the shared .orders-page/.order-card/.orders-table
+   look — this file only adds what's new for the outstanding balance. */
+
+.balance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.balance-list li {
+    font-size: 1.05rem;
+    white-space: nowrap;
+}
+
+.outstanding-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 3px 9px;
+    color: #c43838;
+    background: #fff0f0;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
