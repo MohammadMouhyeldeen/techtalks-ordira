@@ -23,6 +23,11 @@ urlpatterns = [
         views.admin_dashboard,
         name="admin_dashboard",
     ),
+    path(
+        "admin-dashboard/orders/",
+        views.admin_orders,
+        name="admin_orders",
+    ),
     # SCRUM-40: Admin approval actions — POST-only, nested under admin-dashboard/
     path(
         "admin-dashboard/approve/<int:user_id>/",

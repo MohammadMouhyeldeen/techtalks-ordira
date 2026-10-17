@@ -12,9 +12,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.views.decorators.http import require_GET
 
 from .forms import AdminCreateUserForm, ChangePasswordForm, LoginForm, RegistrationForm
 from .models import User
+
+from orders.models import Order
+from shops.models import Shop
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +131,53 @@ def admin_dashboard(request):
         "active_page_obj": active_page_obj,
     })
 
+@login_required
+@require_GET
+def admin_orders(request):
+    """Display the latest 100 orders across shops for platform admins."""
+    denied = _require_admin(request)
+    if denied:
+        return denied
+
+    shops = Shop.objects.order_by("name")
+
+    selected_shop = request.GET.get("shop", "").strip()
+    selected_status = request.GET.get("status", "").strip()
+
+    valid_shop_ids = {str(shop.pk) for shop in shops}
+    valid_statuses = {value for value, _label in Order.Status.choices}
+
+    if selected_shop not in valid_shop_ids:
+        selected_shop = ""
+
+    if selected_status not in valid_statuses:
+        selected_status = ""
+
+    orders_queryset = (
+        Order.objects
+        .select_related("shop")
+        .order_by("-created_at", "-pk")
+    )
+
+    if selected_shop:
+        orders_queryset = orders_queryset.filter(shop_id=selected_shop)
+
+    if selected_status:
+        orders_queryset = orders_queryset.filter(status=selected_status)
+
+    orders = orders_queryset[:100]
+
+    return render(
+        request,
+        "accounts/admin_orders.html",
+        {
+            "orders": orders,
+            "shops": shops,
+            "selected_shop": selected_shop,
+            "selected_status": selected_status,
+            "status_choices": Order.Status.choices,
+        },
+    )
 
 @login_required
 def approve_user(request, user_id):
