@@ -94,7 +94,7 @@ class SidebarRenderingTests(TestCase):
     def test_owner_with_shop_sees_correct_shop_links(self):
         html = self.render_sidebar(self.owner, self.shop)
 
-        self.assertIn(reverse("customers:list"), html)
+        self.assertIn(reverse("customers:list", kwargs={"shop_pk": shop.pk}), html)
         self.assertIn(
             reverse(
                 "shops:delivery-zone-list",
