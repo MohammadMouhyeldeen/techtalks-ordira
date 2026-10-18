@@ -42,7 +42,8 @@
 
         </a>
 
-{% url 'customers:list' shop_pk=shop.pk %}
+
+        <a href="{% url 'customers:list' shop_pk=shop.pk %}"
            class="sidebar-link{% if request.resolver_match.view_name == 'customers:list' %} active{% endif %}">
 
             <span class="sidebar-icon"><svg width="18" height="18"><use href="#i-users"/></svg></span>
