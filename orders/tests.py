@@ -926,27 +926,25 @@ class CheckoutServiceTests(TestCase):
                 "target_status": Order.Status.PREPARING,
             },
         )
-
         self.assertEqual(response.status_code, 404)
 
         order.refresh_from_db()
         self.assertEqual(order.status, Order.Status.NEW)
 
-    
     def test_order_detail_page_renders_successfully(self):
         order = self.create_delivery_order()
         self.client.force_login(self.owner)
 
-        response = self.client.get(
-            reverse(
-                "orders:order-detail",
-                args=[self.shop.pk, order.pk],
-            )
+        detail_url = reverse(
+            "orders:order-detail",
+            args=[self.shop.pk, order.pk],
         )
+
+        response = self.client.get(detail_url)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, order.order_number)
-
+        self.assertContains(response, "Customer information")
 
         def assert_actions_visible(*visible, absent=()):
             response = self.client.get(detail_url)
@@ -957,22 +955,6 @@ class CheckoutServiceTests(TestCase):
 
             for label in absent:
                 self.assertNotContains(response, label)
-
-def test_order_detail_page_renders_successfully(self):
-    order = self.create_delivery_order()
-    self.client.force_login(self.owner)
-
-    response = self.client.get(
-        reverse(
-            "orders:order-detail",
-            args=[self.shop.pk, order.pk],
-        )
-    )
-
-    self.assertEqual(response.status_code, 200)
-    self.assertContains(response, order.order_number)
-    self.assertContains(response, "Customer information")
-
 
         # NEW
         assert_actions_visible(
@@ -1159,6 +1141,7 @@ class OrderSuccessViewTests(TestCase):
             "currency": "USD",
         })
 
+
     def test_real_order_success_shows_actual_submitted_data(self):
         self._checkout()
         order = Order.objects.get()
@@ -1311,7 +1294,7 @@ class OrderTrackingViewTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-   
+
 
     def test_cancelled_order_shows_its_reason(self):
         order = self._place_order()
@@ -1449,4 +1432,4 @@ class OrderCustomerIsolationTests(TestCase):
             context.exception.message_dict["customer"][0],
             "Customer must belong to the selected shop.",
         )
- 
+
