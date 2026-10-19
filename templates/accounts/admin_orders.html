@@ -1,0 +1,99 @@
+
+{% extends "accounts/admin_base.html" %}
+
+{% block title %}Order Monitoring{% endblock %}
+{% block meta_description %}Read-only monitoring of recent orders across all Ordira shops.{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+
+    <header class="admin-page-header">
+        <div>
+            <h1 class="admin-page-title">Order Monitoring</h1>
+            <p class="admin-page-subtitle">
+                View recent orders across all shops. Orders can be filtered by shop and status.
+            </p>
+        </div>
+        <a href="{% url 'accounts:admin_dashboard' %}"
+           class="admin-pagination-link"
+           style="text-decoration:none;">
+            Back to Dashboard
+        </a>
+    </header>
+
+    <div class="admin-card" style="margin-bottom:24px;padding:24px;">
+        <form method="get" action="{% url 'accounts:admin_orders' %}"
+              style="display:flex;gap:16px;align-items:end;flex-wrap:wrap;">
+            <div class="form-group" style="flex:1;min-width:200px;margin:0;">
+                <label for="shop-filter">Shop</label>
+                <select name="shop" id="shop-filter" class="form-control">
+                    <option value="">All shops</option>
+                    {% for shop in shops %}
+                    <option value="{{ shop.pk }}"
+                        {% if selected_shop == shop.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ shop.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="flex:1;min-width:200px;margin:0;">
+                <label for="status-filter">Status</label>
+                <select name="status" id="status-filter" class="form-control">
+                    <option value="">All statuses</option>
+                    {% for status_value, status_label in status_choices %}
+                    <option value="{{ status_value }}"
+                        {% if selected_status == status_value %}selected{% endif %}>
+                        {{ status_label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn-approve">Apply Filters</button>
+            <a href="{% url 'accounts:admin_orders' %}"
+               class="admin-pagination-link"
+               style="text-decoration:none;">
+                Clear
+            </a>
+        </form>
+    </div>
+
+    <div class="admin-card">
+        {% if orders %}
+        <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Recent platform orders">
+                <thead>
+                    <tr>
+                        <th scope="col">Shop</th>
+                        <th scope="col">Order Number</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>{{ order.shop.name }}</td>
+                        <td>{{ order.order_number }}</td>
+                        <td>{{ order.get_status_display }}</td>
+                        <td>{{ order.total|floatformat:2 }} {{ order.currency }}</td>
+                        <td>{{ order.created_at|date:"M j, Y, g:i A" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="admin-empty" id="orders-empty-state">
+            <h2 class="admin-empty-title">No orders found</h2>
+            <p class="admin-empty-text">
+                No orders match the selected filters.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
