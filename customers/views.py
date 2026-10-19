@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, render
 from shops.models import Shop
 
 from .models import Customer
+from .services import outstanding_balances, outstanding_orders
 
 
 def _get_owner_shop(request, shop_pk):
@@ -29,6 +30,11 @@ def customer_list(request, shop_pk):
         .order_by(F("last_order_at").desc(nulls_last=True), "full_name")
     )
 
+    for customer in customers:
+        customer.outstanding_balances = outstanding_balances(
+            outstanding_orders(customer)
+        )
+
     return render(request, "customers/customer_list.html", {
         "shop": shop,
         "customers": customers,
@@ -41,9 +47,12 @@ def customer_detail(request, shop_pk, customer_pk):
     customer = get_object_or_404(Customer, pk=customer_pk, shop=shop)
 
     orders = customer.orders.order_by("-created_at")
+    customer_outstanding_orders = list(outstanding_orders(customer))
 
     return render(request, "customers/customer_detail.html", {
         "shop": shop,
         "customer": customer,
         "orders": orders,
+        "outstanding_balances": outstanding_balances(customer_outstanding_orders),
+        "outstanding_order_ids": {o.pk for o in customer_outstanding_orders},
     })
