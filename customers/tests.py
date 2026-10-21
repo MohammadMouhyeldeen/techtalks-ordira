@@ -12,7 +12,7 @@ from orders.models import Order
 from payments.services import record_payment
 from shops.models import Shop, ShopPaymentMethod
 
-from .models import Customer
+from .models import Customer, normalize_phone_number
 from .services import outstanding_balances, outstanding_orders
 
 
@@ -522,3 +522,38 @@ class CustomerOutstandingBalanceTests(TestCase):
         self.assertContains(response, "45.00 USD")
         self.assertContains(response, "ORD-DETAIL-BALANCE")
         self.assertContains(response, "Outstanding")
+
+
+class NormalizePhoneNumberTests(TestCase):
+    def test_the_rule_normalizes_all_documented_formats(self):
+        cases = {
+            "+961 03 123 456": "9613123456",
+            "+96103123456": "9613123456",
+            "00961 03 123 456": "9613123456",
+            "961 03 123 456": "9613123456",
+            "+961 3 123 456": "9613123456",
+            "03 123 456": "9613123456",
+            "3 123 456": "9613123456",
+            "+961 070 123 456": "96170123456",
+            "+961 70 123 456": "96170123456",
+            "070 123 456": "96170123456",
+            "70 123 456": "96170123456",
+        }
+
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(normalize_phone_number(raw), expected)
+
+    def test_is_idempotent(self):
+        for value in ("9613123456", "96170123456"):
+            with self.subTest(value=value):
+                self.assertEqual(normalize_phone_number(value), value)
+
+    def test_stray_zero_leaving_nine_digits_is_rejected(self):
+        for raw in ("+961 0 123 456", "9610123456"):
+            with self.subTest(raw=raw):
+                with self.assertRaisesMessage(
+                    ValidationError,
+                    "Enter a valid Lebanese phone number with 10 or 11 digits including country code 961.",
+                ):
+                    normalize_phone_number(raw)

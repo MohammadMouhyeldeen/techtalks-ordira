@@ -559,6 +559,94 @@ class ShopSetupReviewTests(TestCase):
             ).exists()
         )
 
+    def test_whatsapp_keeps_country_code_without_trunk_zero(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "WhatsApp Trunk Zero Shop",
+                "slug": "whatsapp-trunk-zero-shop",
+                "whatsapp": "+961 3 123 456",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.dashboard_url,
+        )
+
+        shop = Shop.objects.get(
+            slug="whatsapp-trunk-zero-shop"
+        )
+
+        self.assertEqual(
+            shop.whatsapp,
+            "9613123456",
+        )
+
+    def test_whatsapp_strips_stray_zero_after_country_code(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "WhatsApp Stray Zero Shop",
+                "slug": "whatsapp-stray-zero-shop",
+                "whatsapp": "+961 03 123 456",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.dashboard_url,
+        )
+
+        shop = Shop.objects.get(
+            slug="whatsapp-stray-zero-shop"
+        )
+
+        self.assertEqual(
+            shop.whatsapp,
+            "9613123456",
+        )
+
+    def test_whatsapp_still_rejects_zero_zero_prefix_and_local_format(self):
+        self.client.force_login(self.owner)
+
+        cases = {
+            "00961 03 123 456": "Enter the WhatsApp number with the country code.",
+            "03 123 456": "Enter a WhatsApp number with 10 to 15 digits",
+        }
+
+        for index, (raw, message) in enumerate(cases.items()):
+            with self.subTest(raw=raw):
+                response = self.client.post(
+                    self.setup_url,
+                    {
+                        "name": f"WhatsApp Reject Shop {index}",
+                        "slug": f"whatsapp-reject-shop-{index}",
+                        "whatsapp": raw,
+                        "instagram": "",
+                        "exchange_rate_lbp_per_usd": "89500.00",
+                        "pickup_available": "",
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, message)
+                self.assertFalse(
+                    Shop.objects.filter(
+                        slug=f"whatsapp-reject-shop-{index}"
+                    ).exists()
+                )
+
     def test_logo_over_2_mb_is_rejected(self):
         self.client.force_login(self.owner)
 

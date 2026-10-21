@@ -580,6 +580,96 @@ class CheckoutServiceTests(TestCase):
         customer = Customer.objects.get(shop=self.shop)
         self.assertEqual(customer.phone_number, "9613123456")
 
+    def test_stray_zero_formats_reuse_one_customer(self):
+        phone_formats = [
+            "03 123 456",
+            "+961 03 123 456",
+            "+961 3 123 456",
+        ]
+
+        for phone in phone_formats:
+            self.create_delivery_order(
+                customer_phone=phone,
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        self.assertEqual(
+            Customer.objects.filter(shop=self.shop).count(),
+            1,
+        )
+        customer = Customer.objects.get(shop=self.shop)
+        self.assertEqual(customer.phone_number, "9613123456")
+
+    def test_stray_zero_format_creates_separate_customers_per_shop(self):
+        other_shop = Shop.objects.create(
+            owner=self.owner,
+            name="Second Stray Zero Shop",
+            slug="second-stray-zero-phone-shop",
+            pickup_available=True,
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        other_category = Category.objects.create(
+            shop=other_shop,
+            name="Other Clothing",
+        )
+        other_product = Product.objects.create(
+            shop=other_shop,
+            category=other_category,
+            name="Other T-shirt",
+        )
+        other_variant = ProductVariant.objects.create(
+            product=other_product,
+            color="Blue",
+            size="M",
+            unit_price=Decimal("8.00"),
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=5,
+        )
+        other_payment_method = ShopPaymentMethod.objects.create(
+            shop=other_shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            enabled=True,
+        )
+
+        order_a = self.create_delivery_order(
+            customer_phone="+961 03 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            delivery_zone=None,
+            address="",
+            items=[
+                {
+                    "variant_id": self.usd_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+        )
+
+        order_b = create_order(
+            shop=other_shop,
+            customer_name="Same Customer",
+            customer_phone="03 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            selected_payment_method=other_payment_method,
+            items=[
+                {
+                    "variant_id": other_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+            currency=Order.Currency.USD,
+        )
+
+        customers = Customer.objects.filter(
+            phone_number="9613123456",
+        )
+        self.assertEqual(customers.count(), 2)
+        self.assertNotEqual(order_a.customer.shop_id, order_b.customer.shop_id)
+
     def test_same_normalized_phone_creates_separate_customers_per_shop(self):
         other_shop = Shop.objects.create(
             owner=self.owner,
@@ -1265,7 +1355,7 @@ class OrderSuccessWhatsAppTests(TestCase):
         other_shop = Shop.objects.create(
             owner=other_owner, name="Other Shop", slug="other-shop-whatsapp",
             exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
-            whatsapp="96103987654",
+            whatsapp="9613987654",
         )
         Subscription.objects.create(
             shop=other_shop, plan=Subscription.Plan.BASIC,
@@ -1295,9 +1385,38 @@ class OrderSuccessWhatsAppTests(TestCase):
         )
 
         self.assertContains(response, "https://wa.me/96170123456")
-        self.assertNotContains(response, "https://wa.me/96103987654")
-        self.assertContains(other_response, "https://wa.me/96103987654")
+        self.assertNotContains(response, "https://wa.me/9613987654")
+        self.assertContains(other_response, "https://wa.me/9613987654")
         self.assertNotContains(other_response, "https://wa.me/96170123456")
+
+    def test_success_page_link_is_normalized_from_settings_form(self):
+        self.client.force_login(self.owner)
+
+        for owner_input in ("+961 3 123 456", "+961 03 123 456"):
+            with self.subTest(owner_input=owner_input):
+                response = self.client.post(
+                    reverse("shops:settings"),
+                    {
+                        "name": "Sara's Closet",
+                        "whatsapp": owner_input,
+                        "instagram": "",
+                        "pickup_available": "on",
+                    },
+                )
+
+                self.assertRedirects(response, reverse("shops:settings"))
+
+                self.shop.refresh_from_db()
+                self.assertEqual(self.shop.whatsapp, "9613123456")
+
+                order = self._checkout()
+
+                success = self.client.get(
+                    reverse("order_success", args=[self.shop.slug, order.tracking_token])
+                )
+
+                self.assertContains(success, "https://wa.me/9613123456")
+                self.assertNotContains(success, "https://wa.me/96103123456")
 
     def test_shop_with_no_whatsapp_number_renders_without_error(self):
         self.shop.whatsapp = ""

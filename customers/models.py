@@ -26,6 +26,9 @@ def normalize_phone_number(value: str) -> str:
         # Bare 7–8 digit numbers are treated as Lebanese local numbers.
         phone = f"961{phone}"
 
+    if phone.startswith("9610"):
+        phone = f"961{phone[4:]}"
+
     # Lebanese numbers must be 10–11 digits including 961.
     if phone.startswith("961"):
         if not 10 <= len(phone) <= 11:

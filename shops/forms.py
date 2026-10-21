@@ -27,6 +27,9 @@ class ShopContactLogoCleanMixin:
 
         whatsapp = re.sub(r"[\s\-\(\)\[\]]", "", whatsapp)
 
+        if whatsapp.startswith("9610"):
+            whatsapp = f"961{whatsapp[4:]}"
+
         if (not whatsapp.isdigit() or not whatsapp.isascii() or not 10 <= len(whatsapp) <= 15):
             raise forms.ValidationError(
                 "Enter a WhatsApp number with 10 to 15 digits, "
