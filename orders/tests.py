@@ -524,6 +524,7 @@ class CheckoutServiceTests(TestCase):
             "70123456",
             "+961 70 123 456",
             "0070123456",
+            "+961 070 123 456",
         ]
 
         orders = []
@@ -560,7 +561,13 @@ class CheckoutServiceTests(TestCase):
             "03123456",
             "+961 3 123 456",
             "00961 3 123 456",
+            "+961 03 123 456",
+            "+96103123456",
+            "00961 03 123 456",
+            "961 03 123 456",
         ]
+        self.usd_variant.stock_quantity=len(phone_formats)
+        self.usd_variant.save()
 
         for phone in phone_formats:
             self.create_delivery_order(
@@ -1265,7 +1272,7 @@ class OrderSuccessWhatsAppTests(TestCase):
         other_shop = Shop.objects.create(
             owner=other_owner, name="Other Shop", slug="other-shop-whatsapp",
             exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
-            whatsapp="96103987654",
+            whatsapp="9613987654",
         )
         Subscription.objects.create(
             shop=other_shop, plan=Subscription.Plan.BASIC,
@@ -1295,8 +1302,8 @@ class OrderSuccessWhatsAppTests(TestCase):
         )
 
         self.assertContains(response, "https://wa.me/96170123456")
-        self.assertNotContains(response, "https://wa.me/96103987654")
-        self.assertContains(other_response, "https://wa.me/96103987654")
+        self.assertNotContains(response, "https://wa.me/9613987654")
+        self.assertContains(other_response, "https://wa.me/9613987654")
         self.assertNotContains(other_response, "https://wa.me/96170123456")
 
     def test_shop_with_no_whatsapp_number_renders_without_error(self):

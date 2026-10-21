@@ -485,7 +485,28 @@ class ShopSetupReviewTests(TestCase):
             {
                 "name": "WhatsApp Shop",
                 "slug": "whatsapp-shop",
-                "whatsapp": "+961 70-123-(456)",
+                "whatsapp": "+961 03 123 456",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertRedirects(response, self.dashboard_url)
+
+        shop = Shop.objects.get(slug="whatsapp-shop")
+        self.assertEqual(shop.whatsapp, "9613123456")
+
+
+    def test_whatsapp_without_trunk_zero_is_normalized(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "WhatsApp Shop Without Zero",
+                "slug": "whatsapp-shop-without-zero",
+                "whatsapp": "+961 3 123 456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -498,13 +519,10 @@ class ShopSetupReviewTests(TestCase):
         )
 
         shop = Shop.objects.get(
-            slug="whatsapp-shop"
+            slug="whatsapp-shop-without-zero",
         )
+        self.assertEqual(shop.whatsapp, "9613123456")
 
-        self.assertEqual(
-            shop.whatsapp,
-            "96170123456",
-        )
 
     def test_invalid_whatsapp_is_rejected(self):
         self.client.force_login(self.owner)

@@ -19,11 +19,14 @@ def normalize_phone_number(value: str) -> str:
     if phone.startswith("00"):
         phone = phone[2:]
 
+    # Remove the optional trunk zero after Lebanon's country code.
+    if phone.startswith("9610"):
+        phone = f"961{phone[4:]}"
+
     # Convert a Lebanese local number to country-code form.
-    if phone.startswith("0"):
+    elif phone.startswith("0"):
         phone = f"961{phone[1:]}"
     elif len(phone) in (7, 8):
-        # Bare 7–8 digit numbers are treated as Lebanese local numbers.
         phone = f"961{phone}"
 
     # Lebanese numbers must be 10–11 digits including 961.
