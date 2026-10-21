@@ -1,8 +1,8 @@
-﻿# Admin Order Monitoring — Read-Only Orders Across Shops
+# Admin Order Monitoring — Read-Only Orders Across Shops
 
 -**Owner:** Jinane
 - Sprint: 6
-- Epic: SCRUM-74
+- Ticket: SCRUM-92
 - Branch: `feature/admin-order-monitoring`
 - Target branch: `develop`
 - Scope: Admin-only, read-only order monitoring across all shops
