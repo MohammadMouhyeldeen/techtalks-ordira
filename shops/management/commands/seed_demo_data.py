@@ -3,9 +3,15 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import User
+from orders.models import Order
+from orders.services import create_order
 from products.models import Category, Product, ProductVariant
-from shops.models import Shop, Subscription
-
+from shops.models import (
+    DeliveryZone,
+    Shop,
+    ShopPaymentMethod,
+    Subscription,
+)
 
 class Command(BaseCommand):
     help = "Create demo data for Sprint 3."
@@ -175,6 +181,101 @@ class Command(BaseCommand):
                 "low_stock_threshold": 5,
             },
         )
+
+
+        # ---------------------------------------------------------
+        # Demo payment method, delivery zone, customers and orders
+        # ---------------------------------------------------------
+
+        cash_method, _ = ShopPaymentMethod.objects.get_or_create(
+            shop=active_shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            defaults={"enabled": True},
+        )
+
+        # Keep the demo cash payment method available.
+        if not cash_method.enabled:
+            cash_method.enabled = True
+            cash_method.save(update_fields=["enabled"])
+
+        beirut_zone, _ = DeliveryZone.objects.get_or_create(
+            shop=active_shop,
+            area_name="Beirut",
+            defaults={
+                "fee": "3.00",
+                "is_active": True,
+            },
+        )
+
+        # Ensure the demo delivery zone remains usable.
+        if not beirut_zone.is_active:
+            beirut_zone.is_active = True
+            beirut_zone.save(update_fields=["is_active"])
+
+        sand_m = ProductVariant.objects.get(
+            product=linen_shirt,
+            color="Sand",
+            size="M",
+        )
+        denim_blue_m = ProductVariant.objects.get(
+            product=denim_jacket,
+            color="Blue",
+            size="M",
+        )
+        tote_natural = ProductVariant.objects.get(
+            product=tote_bag,
+            color="Natural",
+            size="One Size",
+        )
+
+        demo_orders = [
+            {
+                "order_number": "ORD-DEMO-001",
+                "customer_name": "Reem Haddad",
+                "customer_phone": "+96170111001",
+                "fulfillment_type": Order.FulfillmentType.PICKUP,
+                "items": [{"variant_id": sand_m.pk, "quantity": 1}],
+            },
+            {
+                "order_number": "ORD-DEMO-002",
+                "customer_name": "Maya Khoury",
+                "customer_phone": "+96170111002",
+                "fulfillment_type": Order.FulfillmentType.DELIVERY,
+                "delivery_zone": beirut_zone,
+                "address": "Hamra, Beirut",
+                "items": [{"variant_id": denim_blue_m.pk, "quantity": 1}],
+            },
+            {
+                "order_number": "ORD-DEMO-003",
+                "customer_name": "Karim Nassar",
+                "customer_phone": "+96170111003",
+                "fulfillment_type": Order.FulfillmentType.PICKUP,
+                "items": [{"variant_id": tote_natural.pk, "quantity": 2}],
+            },
+        ]
+
+        for demo_order in demo_orders:
+            order_number = demo_order["order_number"]
+
+            # Never recreate a seeded order: create_order() deducts stock.
+            if Order.objects.filter(order_number=order_number).exists():
+                continue
+
+            order = create_order(
+                shop=active_shop,
+                customer_name=demo_order["customer_name"],
+                customer_phone=demo_order["customer_phone"],
+                fulfillment_type=demo_order["fulfillment_type"],
+                selected_payment_method=cash_method,
+                items=demo_order["items"],
+                currency=Order.Currency.USD,
+                delivery_zone=demo_order.get("delivery_zone"),
+                address=demo_order.get("address", ""),
+            )
+
+            order.order_number = order_number
+            order.save(update_fields=["order_number"])
+
 
         # ---------------------------------------------------------
         # Shop with no subscription

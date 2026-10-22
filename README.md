@@ -150,23 +150,45 @@ The `media/` directory is ignored by Git. Only the file paths are stored in Post
 
 ## How to run the new tests: python manage.py test accounts -v2
 
-## How to create test users
-During development and manual testing, you may need users with specific roles and statuses (e.g. PENDING, SUSPENDED, ACTIVE ADMIN, ACTIVE SHOP_OWNER). 
-To create them properly, use the Django shell:
-```bash
-python manage.py shell
-```
-Then paste the following code to seed the test users:
-```python
-from accounts.models import User
 
-# Example: Create an active admin
-User.objects.create_superuser("admin@example.com", "testpassword123", full_name="Admin")
+### Demo Seed Data
 
-# Example: Create a pending shop owner
-User.objects.create_user("pending@example.com", "testpassword123", full_name="Pending", status=User.Status.PENDING, role=User.Role.SHOP_OWNER)
+To create the demo accounts and sample shop data, run the following commands after configuring your local database:
+
+```powershell
+python manage.py migrate
+python manage.py seed_demo_data
 ```
-*Note: Always use `User.objects.create_user()` or `create_superuser()` to ensure passwords are automatically hashed. Never set passwords directly without hashing.*
+
+The seed command creates demo users, a shop, products, product variants, stock, customers, and sample orders. You can run it again to verify that existing demo orders and stock are not duplicated or deducted again.
+
+#### Demo Accounts
+
+All demo accounts use this test password:
+
+`DemoPass123!`
+
+| Account | Email |
+|---|---|
+| Admin | `admin@ordira.test` |
+| Active shop owner | `active.owner@ordira.test` |
+| No-subscription owner | `no.subscription.owner@ordira.test` |
+| Pending owner | `pending.owner@ordira.test` |
+| Suspended owner | `suspended.owner@ordira.test` |
+
+The active demo shop is **Demo Fashion**. After starting the development server, open its public catalog at:
+
+`http://localhost:8000/store/demo-fashion/`
+
+Start the server with:
+
+```powershell
+python manage.py runserver
+```
+
+**Security:** These credentials are for local testing only. Never use them in production. Keep private database passwords in your local `.env` file and do not commit them to Git.
+
+
 
 ### Admin: create a user directly
 - `accounts:admin_create_user` (`admin-dashboard/create-user/`, Admin only): enter name, email and role. The account is created ACTIVE with no password.
@@ -183,4 +205,3 @@ For the full project documentation, see:
 - [Database](docs/database.md)
 - [Application Interfaces](docs/api.md)
 - [Task Documentation](docs/tasks/)
-
