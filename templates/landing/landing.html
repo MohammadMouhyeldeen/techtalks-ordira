@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="/static/landing/css/landing.css">
+<link rel="stylesheet" href="/static/landing/css/landing.css?v=2">
 </head>
 <body>
 
@@ -62,8 +62,8 @@
     </nav>
 
     <div class="header-actions">
-      <a href="#" class="link-muted nav-login">Log in</a>
-      <a href="#pricing" class="btn btn-primary btn-sm">Start Free</a>
+      <a href="{% url 'accounts:login' %}" class="link-muted nav-login">Log in</a>
+      <a href="{% url 'accounts:register' %}" class="btn btn-primary btn-sm">Get Started</a>
       <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mobileNav" aria-label="Open menu">
         <svg width="24" height="24" class="i-open"><use href="#i-menu"/></svg>
         <svg width="24" height="24" class="i-close"><use href="#i-close"/></svg>
@@ -77,8 +77,8 @@
     <a href="#shop-link">Shop link</a>
     <a href="#pricing">Pricing</a>
     <a href="#faq">FAQ</a>
-    <a href="#" class="link-muted">Log in</a>
-    <a href="#pricing" class="btn btn-primary">Start Free</a>
+    <a href="{% url 'accounts:login' %}" class="link-muted">Log in</a>
+    <a href="{% url 'accounts:register' %}" class="btn btn-primary">Get Started</a>
   </div>
 </header>
 
@@ -98,13 +98,13 @@
       <h1>Stop losing orders in your <span class="text-gradient">WhatsApp</span> chats.</h1>
       <p class="hero-sub">Share your shop link so customers can browse and place orders. Each order arrives organized in your Ordira dashboard, then you and your customer can arrange payment directly on WhatsApp.</p>
       <div class="hero-ctas">
-        <a href="#pricing" class="btn btn-primary btn-lg">
-          Start Free — No Card Needed
+        <a href="{% url 'accounts:register' %}" class="btn btn-primary btn-lg">
+          Get Started
           <svg width="18" height="18"><use href="#i-arrow"/></svg>
         </a>
         <a href="#how-it-works" class="btn btn-ghost btn-lg">See how it works</a>
       </div>
-      <p class="hero-note">Free 14-day trial · Set up in under 10 minutes · Cancel anytime</p>
+      <p class="hero-note">Set up in under 10 minutes · Built for Lebanese shop owners</p>
 
       <div class="hero-stats">
         <div class="stat">
@@ -248,7 +248,7 @@
       <article class="feature-card reveal" style="--delay:240ms">
         <div class="feature-icon"><svg width="24" height="24"><use href="#i-wallet"/></svg></div>
         <h3>Payments &amp; debts</h3>
-        <p>Log cash, USD or transfer payments. Track partial payments and dyoon per customer.</p>
+        <p>Record full payments in USD or LBP and track outstanding balances per customer.</p>
       </article>
       <article class="feature-card reveal" style="--delay:300ms">
         <div class="feature-icon"><svg width="24" height="24"><use href="#i-doc"/></svg></div>
@@ -407,65 +407,76 @@
   <div class="container">
     <div class="section-head reveal">
       <span class="tag-pill">Simple pricing</span>
-      <h2>Transparent pricing. No sales calls.</h2>
-      <p>Pick a plan, start your free trial, cancel whenever. That's it.</p>
-    </div>
-
-    <div class="billing-toggle reveal">
-      <span class="billing-label active" data-billing="monthly">Monthly</span>
-      <button class="switch" id="billingSwitch" role="switch" aria-checked="false" aria-label="Toggle annual billing">
-        <span class="switch-knob"></span>
-      </button>
-      <span class="billing-label" data-billing="annual">Annual <span class="save-pill">Save 20%</span></span>
+      <h2>Choose the plan that fits your shop.</h2>
+      <p>Simple subscription options with no hidden fees.</p>
     </div>
 
     <div class="pricing-grid">
-      <div class="price-card reveal">
-        <h3>Starter</h3>
-        <p class="price-desc">For solo sellers just getting off WhatsApp.</p>
-        <div class="price-amount"><span class="currency">$</span><span class="amount" data-monthly="10" data-annual="8">10</span><span class="period">/mo</span></div>
+      <div class="price-card price-card-featured reveal">
+        <span class="featured-badge">
+          <svg width="14" height="14"><use href="#i-star"/></svg>
+          Most popular
+        </span>
+
+        <h3>Basic</h3>
+        <p class="price-desc">
+          Essential tools for running and organizing your shop.
+        </p>
+
+        <div class="price-amount">
+          <span class="currency">$</span>
+          <span class="amount">5</span>
+          <span class="period">/month</span>
+        </div>
+
         <ul class="price-features">
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>1 shop link</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Up to 100 products</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Unlimited orders</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Basic customer list</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Email support</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Public shop link and product catalog</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Inventory and order management</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Guest checkout and order tracking</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Customer records</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Manual payment recording</li>
         </ul>
-        <a href="#" class="btn btn-outline btn-block">Start Free</a>
+
+        <a
+          href="{% url 'accounts:register' %}"
+          class="btn btn-primary btn-block"
+        >
+          Get started
+        </a>
       </div>
 
-      <div class="price-card price-card-featured reveal" style="--delay:80ms">
-        <span class="featured-badge"><svg width="14" height="14"><use href="#i-star"/></svg> Most popular</span>
-        <h3>Growth</h3>
-        <p class="price-desc">For shops juggling stock, debts and repeat customers.</p>
-        <div class="price-amount"><span class="currency">$</span><span class="amount" data-monthly="20" data-annual="16">20</span><span class="period">/mo</span></div>
-        <ul class="price-features">
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Everything in Starter</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Inventory &amp; low-stock alerts</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Customer debts &amp; partial payments</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Invoices &amp; receipts</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Order tracking page</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Priority support</li>
-        </ul>
-        <a href="#" class="btn btn-primary btn-block">Start Free</a>
-      </div>
+      <div class="price-card reveal" style="--delay:80ms">
+        <h3>Premium</h3>
+        <p class="price-desc">
+          The complete Ordira toolkit for growing shops.
+        </p>
 
-      <div class="price-card reveal" style="--delay:160ms">
-        <h3>Pro</h3>
-        <p class="price-desc">For growing shops with a small team.</p>
-        <div class="price-amount"><span class="currency">$</span><span class="amount" data-monthly="30" data-annual="24">30</span><span class="period">/mo</span></div>
+        <div class="price-amount">
+          <span class="currency">$</span>
+          <span class="amount">100</span>
+          <span class="period">/year</span>
+        </div>
+
         <ul class="price-features">
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Everything in Growth</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Multiple staff logins</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Sales &amp; debt reports</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Custom shop branding</li>
-          <li><svg width="16" height="16"><use href="#i-check"/></svg>Priority phone support</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Everything in Basic</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Low-stock notifications</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Outstanding balance tracking</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Invoice PDF downloads</li>
+          <li><svg width="16" height="16"><use href="#i-check"/></svg>Delivery and payment settings</li>
         </ul>
-        <a href="#" class="btn btn-outline btn-block">Start Free</a>
+
+        <a
+          href="{% url 'accounts:register' %}"
+          class="btn btn-outline btn-block"
+        >
+          Get started
+        </a>
       </div>
     </div>
 
-    <p class="pricing-note reveal">All plans include a 14-day free trial. Prices in USD, billed in USD or LBP equivalent.</p>
+    <p class="pricing-note reveal">
+      Prices are in USD. Subscription activation is managed through Ordira.
+    </p>
   </div>
 </section>
 
@@ -523,15 +534,21 @@
           <p>No app, no account required. Your shop link opens straight in any phone browser — customers can browse, order and track their order immediately.</p>
         </div>
       </div>
-      <div class="faq-item">
-        <button class="faq-question" aria-expanded="false">
-          What happens after my free trial ends?
-          <svg width="18" height="18" class="faq-chevron"><use href="#i-arrow"/></svg>
-        </button>
-        <div class="faq-answer">
-          <p>Pick the plan that fits your shop, or don't — there's no auto lock-in. No long-term contracts, and you can cancel anytime from your dashboard.</p>
-        </div>
-      </div>
+     <div class="faq-item">
+  <button class="faq-question" aria-expanded="false">
+    Which subscription plan should I choose?
+    <svg width="18" height="18" class="faq-chevron">
+      <use href="#i-arrow"/>
+    </svg>
+  </button>
+  <div class="faq-answer">
+    <p>
+      Basic costs $5 per month and covers the essential tools for running
+      your shop. Premium costs $100 per year and includes the complete
+      Ordira toolkit.
+    </p>
+  </div>
+</div>
     </div>
   </div>
 </section>
@@ -541,8 +558,8 @@
   <div class="container final-cta-inner reveal">
     <h2>Yalla, make every order easier to manage.</h2>
     <p>Share your shop link, receive organized orders in your dashboard, and arrange payment with customers on WhatsApp.</p>
-    <a href="#pricing" class="btn btn-primary btn-lg">
-      Start Free — No Card Needed
+    <a href="{% url 'accounts:register' %}" class="btn btn-primary btn-lg">
+      Get started
       <svg width="18" height="18"><use href="#i-arrow"/></svg>
     </a>
   </div>
