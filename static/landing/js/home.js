@@ -108,38 +108,6 @@
     });
   });
 
-  /* ---------- Pricing billing toggle ---------- */
-  const billingSwitch = document.getElementById('billingSwitch');
-  const billingLabels = document.querySelectorAll('.billing-label');
-  const priceAmounts = document.querySelectorAll('.price-amount .amount');
-  const periodEls = document.querySelectorAll('.price-amount .period');
-
-  const setBilling = (annual) => {
-    billingSwitch?.setAttribute('aria-checked', String(annual));
-    billingLabels.forEach((label) => {
-      const isAnnual = label.getAttribute('data-billing') === 'annual';
-      label.classList.toggle('active', isAnnual === annual);
-    });
-    priceAmounts.forEach((amountEl) => {
-      const value = annual ? amountEl.getAttribute('data-annual') : amountEl.getAttribute('data-monthly');
-      amountEl.style.opacity = '0';
-      setTimeout(() => {
-        amountEl.textContent = value;
-        amountEl.style.opacity = '1';
-      }, 120);
-    });
-    periodEls.forEach((p) => { p.textContent = annual ? '/mo, billed yearly' : '/mo'; });
-  };
-
-  billingSwitch?.addEventListener('click', () => {
-    const isAnnual = billingSwitch.getAttribute('aria-checked') === 'true';
-    setBilling(!isAnnual);
-  });
-
-  billingLabels.forEach((label) => {
-    label.addEventListener('click', () => setBilling(label.getAttribute('data-billing') === 'annual'));
-  });
-
   /* ---------- FAQ accordion ---------- */
   const faqQuestions = document.querySelectorAll('.faq-question');
 
