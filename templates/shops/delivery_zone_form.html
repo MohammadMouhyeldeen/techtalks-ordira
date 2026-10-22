@@ -1,19 +1,86 @@
 {% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>{{ page_title }}</h1>
 
-    <form method="post">
-        {% csrf_token %}
+<div class="inventory-page inventory-page-narrow">
+    <div class="inventory-header">
+        <div>
+            <a
+                class="back-link"
+                href="{% url 'shops:delivery-zone-list' shop_pk=shop.pk %}"
+            >
+                &larr; Back to delivery zones
+            </a>
 
-        {{ form.as_p }}
+            <h1 class="inventory-title">{{ page_title }}</h1>
 
-        <button type="submit">Save</button>
+            <p class="inventory-subtitle">
+                {% if zone %}
+                    Update this delivery zone for {{ shop.name }}.
+                {% else %}
+                    Create a new delivery zone for {{ shop.name }}.
+                {% endif %}
+            </p>
+        </div>
+    </div>
 
-        <a href="{% url 'shops:delivery-zone-list' shop_pk=shop.pk %}">
-            Cancel
-        </a>
-    </form>
+    <div class="inventory-card form-card">
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="form-alert form-alert-error">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            {% for field in form %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
+
+                    {% if field.help_text %}
+                        <small class="form-help">
+                            {{ field.help_text|safe }}
+                        </small>
+                    {% endif %}
+
+                    {% for error in field.errors %}
+                        <span class="field-error">
+                            {{ error }}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+            <div class="form-actions">
+                <button
+                    class="inventory-btn inventory-btn-primary"
+                    type="submit"
+                >
+                    {% if zone %}
+                        Save changes
+                    {% else %}
+                        Create delivery zone
+                    {% endif %}
+                </button>
+
+                <a
+                    class="inventory-btn inventory-btn-secondary"
+                    href="{% url 'shops:delivery-zone-list' shop_pk=shop.pk %}"
+                >
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
 </div>
+
 {% endblock %}

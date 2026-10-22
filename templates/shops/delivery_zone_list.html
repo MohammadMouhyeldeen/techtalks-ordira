@@ -1,63 +1,128 @@
 {% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delivery Zones | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'products/css/products.css' %}">
+{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>Delivery Zones</h1>
 
-    <p>
-        Manage delivery areas and fees for {{ shop.name }}.
-    </p>
+<div class="inventory-page">
+    <div class="inventory-header">
+        <div>
+            <h1 class="inventory-title">Delivery Zones</h1>
+            <p class="inventory-subtitle">
+                Manage delivery areas and fees for {{ shop.name }}.
+            </p>
+        </div>
 
-    <p>
-        <a href="{% url 'shops:delivery-zone-create' shop_pk=shop.pk %}">
-            Add delivery zone
-        </a>
-    </p>
+        <div class="header-actions">
+            <a
+                class="btn btn-primary"
+                href="{% url 'shops:delivery-zone-create' shop_pk=shop.pk %}"
+            >
+                Add delivery zone
+            </a>
+        </div>
+    </div>
 
-    {% if zones %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Area</th>
-                    <th>Fee</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for zone in zones %}
-                    <tr>
-                        <td>{{ zone.area_name }}</td>
-                        <td>{{ zone.fee }} USD</td>
-                        <td>
-                            {% if zone.is_active %}
-                                Active
-                            {% else %}
-                                Inactive
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a href="{% url 'shops:delivery-zone-edit' shop_pk=shop.pk zone_pk=zone.pk %}">
-                                Edit
-                            </a>
+    <div class="inventory-card">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Delivery zones</h2>
 
-                            <form
-                                method="post"
-                                action="{% url 'shops:delivery-zone-delete' shop_pk=shop.pk zone_pk=zone.pk %}"
-                                style="display:inline;"
-                            >
-                                {% csrf_token %}
-                                <button type="submit">
-                                    Delete
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>No delivery zones configured yet.</p>
-    {% endif %}
+                <p class="section-description">
+                    Areas you deliver to and their fees.
+                </p>
+            </div>
+
+            <span class="variant-count">
+                {{ zones|length }}
+                zone{{ zones|length|pluralize }}
+            </span>
+        </div>
+
+        {% if zones %}
+            <div class="table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Area</th>
+                            <th>Fee</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for zone in zones %}
+                            <tr>
+                                <td>
+                                    <strong>{{ zone.area_name }}</strong>
+                                </td>
+
+                                <td>{{ zone.fee }} USD</td>
+
+                                <td>
+                                    {% if zone.is_active %}
+                                        Active
+                                    {% else %}
+                                        Inactive
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <div class="table-actions">
+                                        <a
+                                            href="{% url 'shops:delivery-zone-edit' shop_pk=shop.pk zone_pk=zone.pk %}"
+                                        >
+                                            Edit
+                                        </a>
+
+                                        <form
+                                            class="danger-form"
+                                            method="post"
+                                            action="{% url 'shops:delivery-zone-delete' shop_pk=shop.pk zone_pk=zone.pk %}"
+                                            onsubmit="return confirm('Delete this delivery zone?');"
+                                        >
+                                            {% csrf_token %}
+
+                                            <button
+                                                class="btn btn-danger"
+                                                type="submit"
+                                            >
+                                                Delete
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">+</div>
+
+                <h3>No delivery zones yet</h3>
+
+                <p>
+                    Add your first delivery area so customers can choose it at
+                    checkout.
+                </p>
+
+                <a
+                    class="btn btn-primary"
+                    href="{% url 'shops:delivery-zone-create' shop_pk=shop.pk %}"
+                >
+                    Add your first delivery zone
+                </a>
+            </div>
+        {% endif %}
+    </div>
 </div>
+
 {% endblock %}
