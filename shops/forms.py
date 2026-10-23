@@ -12,6 +12,10 @@ class ShopContactLogoCleanMixin:
 
     MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["whatsapp"].required = True
+
     def clean_whatsapp(self):
         whatsapp = self.cleaned_data.get("whatsapp", "").strip()
 
@@ -22,6 +26,9 @@ class ShopContactLogoCleanMixin:
             whatsapp = whatsapp[1:]
 
         whatsapp = re.sub(r"[\s\-\(\)\[\]]", "", whatsapp)
+
+        if whatsapp.startswith("9610"):
+            whatsapp = f"961{whatsapp[4:]}"
 
         if (not whatsapp.isdigit() or not whatsapp.isascii() or not 10 <= len(whatsapp) <= 15):
             raise forms.ValidationError(

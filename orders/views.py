@@ -1,16 +1,26 @@
+import re
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from shops.decorators import public_shop_required
 from shops.models import Shop
 
 from payments.forms import RecordPaymentForm
+from payments.invoice_service import (
+    build_invoice_pdf,
+    get_or_create_invoice,
+)
 
 from .models import Order
 from .services import cancel_order, transition_order_status
+
+EXPECTED_PAYMENT_PLACES = Decimal("0.01")
 
 
 def _payment_method_display(order):
@@ -22,6 +32,56 @@ def _payment_method_display(order):
     if method is None:
         return "Not available"
     return method.get_method_name_display()
+
+
+def _expected_payment_amounts(order):
+    total = Decimal(order.total)
+    fx_rate = Decimal(order.fx_rate_snapshot)
+
+    if fx_rate <= Decimal("0.00"):
+        return {
+            order.currency: format(
+                total.quantize(
+                    EXPECTED_PAYMENT_PLACES,
+                    rounding=ROUND_HALF_UP,
+                ),
+                ".2f",
+            ),
+        }
+
+    if order.currency == Order.Currency.USD:
+        usd_amount = total
+        lbp_amount = total * fx_rate
+    else:
+        lbp_amount = total
+        usd_amount = total / fx_rate
+
+    return {
+        Order.Currency.USD: format(
+            usd_amount.quantize(
+                EXPECTED_PAYMENT_PLACES,
+                rounding=ROUND_HALF_UP,
+            ),
+            ".2f",
+        ),
+        Order.Currency.LBP: format(
+            lbp_amount.quantize(
+                EXPECTED_PAYMENT_PLACES,
+                rounding=ROUND_HALF_UP,
+            ),
+            ".2f",
+        ),
+    }
+
+
+def _shop_whatsapp_link(shop):
+    """wa.me takes digits only — no +, spaces, dashes or parens. shop.whatsapp
+    is already normalized to that shape by ShopContactLogoCleanMixin.clean_whatsapp
+    when set through the settings form, but this strips non-digits again
+    anyway rather than trusting every row was written that way, and returns
+    None (never a broken link) when the shop hasn't set one at all."""
+    digits = re.sub(r"\D", "", shop.whatsapp)
+    return f"https://wa.me/{digits}" if digits else None
 
 
 def _order_context(order):
@@ -57,6 +117,7 @@ def order_success(request, shop, tracking_token):
     return render(request, "storefront/order_success.html", {
         "shop": shop,
         "order": order,
+        "whatsapp_link": _shop_whatsapp_link(shop),
         **_order_context(order),
     })
 
@@ -138,6 +199,8 @@ def merchant_order_detail(request, shop_pk, order_pk):
 
     payment = getattr(order, "payment", None)
 
+    expected_payment_amounts = _expected_payment_amounts(order)
+
     payment_form = None
 
     if payment is None and order.status != Order.Status.CANCELLED:
@@ -158,9 +221,34 @@ def merchant_order_detail(request, shop_pk, order_pk):
             "order": order,
             "payment": payment,
             "payment_form": payment_form,
+            "selected_payment_method_display": _payment_method_display(order),
+            "expected_payment_amounts": expected_payment_amounts,
         },
     )
 
+@login_required
+@require_GET
+def merchant_order_invoice_pdf(request, shop_pk, order_pk):
+    shop = _get_owner_shop(request, shop_pk)
+
+    order = get_object_or_404(
+        Order,
+        pk=order_pk,
+        shop=shop,
+    )
+
+    invoice, locked_order = get_or_create_invoice(order)
+    pdf_content = build_invoice_pdf(invoice, locked_order)
+
+    response = HttpResponse(
+        pdf_content,
+        content_type="application/pdf",
+    )
+    response["Content-Disposition"] = (
+        f'attachment; filename="{invoice.invoice_number}.pdf"'
+    )
+
+    return response
 
 @login_required
 @require_POST

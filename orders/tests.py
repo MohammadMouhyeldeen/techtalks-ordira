@@ -518,6 +518,242 @@ class CheckoutServiceTests(TestCase):
             "Expected the ProductVariant query to use FOR UPDATE.",
         )
 
+    def test_equivalent_lebanese_phone_formats_reuse_one_customer(self):
+        phone_formats = [
+            "70 123 456",
+            "70123456",
+            "+961 70 123 456",
+            "0070123456",
+        ]
+
+        orders = []
+        for phone in phone_formats:
+            order = self.create_delivery_order(
+                customer_phone=phone,
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+            orders.append(order)
+
+        self.assertEqual(
+            Customer.objects.filter(shop=self.shop).count(),
+            1,
+        )
+
+        customer = Customer.objects.get(shop=self.shop)
+        self.assertEqual(customer.phone_number, "96170123456")
+
+        for order in orders:
+            self.assertEqual(order.customer_id, customer.pk)
+            self.assertEqual(
+                order.customer_phone_snapshot,
+                "96170123456",
+            )
+
+    def test_equivalent_local_three_prefix_formats_reuse_one_customer(self):
+        phone_formats = [
+            "03 123 456",
+            "03123456",
+            "+961 3 123 456",
+            "00961 3 123 456",
+        ]
+
+        for phone in phone_formats:
+            self.create_delivery_order(
+                customer_phone=phone,
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        self.assertEqual(
+            Customer.objects.filter(shop=self.shop).count(),
+            1,
+        )
+        customer = Customer.objects.get(shop=self.shop)
+        self.assertEqual(customer.phone_number, "9613123456")
+
+    def test_stray_zero_formats_reuse_one_customer(self):
+        phone_formats = [
+            "03 123 456",
+            "+961 03 123 456",
+            "+961 3 123 456",
+        ]
+
+        for phone in phone_formats:
+            self.create_delivery_order(
+                customer_phone=phone,
+                items=[
+                    {
+                        "variant_id": self.usd_variant.pk,
+                        "quantity": 1,
+                    },
+                ],
+            )
+
+        self.assertEqual(
+            Customer.objects.filter(shop=self.shop).count(),
+            1,
+        )
+        customer = Customer.objects.get(shop=self.shop)
+        self.assertEqual(customer.phone_number, "9613123456")
+
+    def test_stray_zero_format_creates_separate_customers_per_shop(self):
+        other_shop = Shop.objects.create(
+            owner=self.owner,
+            name="Second Stray Zero Shop",
+            slug="second-stray-zero-phone-shop",
+            pickup_available=True,
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        other_category = Category.objects.create(
+            shop=other_shop,
+            name="Other Clothing",
+        )
+        other_product = Product.objects.create(
+            shop=other_shop,
+            category=other_category,
+            name="Other T-shirt",
+        )
+        other_variant = ProductVariant.objects.create(
+            product=other_product,
+            color="Blue",
+            size="M",
+            unit_price=Decimal("8.00"),
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=5,
+        )
+        other_payment_method = ShopPaymentMethod.objects.create(
+            shop=other_shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            enabled=True,
+        )
+
+        order_a = self.create_delivery_order(
+            customer_phone="+961 03 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            delivery_zone=None,
+            address="",
+            items=[
+                {
+                    "variant_id": self.usd_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+        )
+
+        order_b = create_order(
+            shop=other_shop,
+            customer_name="Same Customer",
+            customer_phone="03 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            selected_payment_method=other_payment_method,
+            items=[
+                {
+                    "variant_id": other_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+            currency=Order.Currency.USD,
+        )
+
+        customers = Customer.objects.filter(
+            phone_number="9613123456",
+        )
+        self.assertEqual(customers.count(), 2)
+        self.assertNotEqual(order_a.customer.shop_id, order_b.customer.shop_id)
+
+    def test_same_normalized_phone_creates_separate_customers_per_shop(self):
+        other_shop = Shop.objects.create(
+            owner=self.owner,
+            name="Second Shop",
+            slug="second-phone-test-shop",
+            pickup_available=True,
+            exchange_rate_lbp_per_usd=Decimal("90000.00"),
+        )
+        other_category = Category.objects.create(
+            shop=other_shop,
+            name="Other Clothing",
+        )
+        other_product = Product.objects.create(
+            shop=other_shop,
+            category=other_category,
+            name="Other T-shirt",
+        )
+        other_variant = ProductVariant.objects.create(
+            product=other_product,
+            color="Blue",
+            size="M",
+            unit_price=Decimal("8.00"),
+            currency=ProductVariant.Currency.USD,
+            stock_quantity=5,
+        )
+        other_payment_method = ShopPaymentMethod.objects.create(
+            shop=other_shop,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+            enabled=True,
+        )
+
+        order_a = self.create_delivery_order(
+            customer_phone="70 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            delivery_zone=None,
+            address="",
+            items=[
+                {
+                    "variant_id": self.usd_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+        )
+
+        order_b = create_order(
+            shop=other_shop,
+            customer_name="Same Customer",
+            customer_phone="+961 70 123 456",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            selected_payment_method=other_payment_method,
+            items=[
+                {
+                    "variant_id": other_variant.pk,
+                    "quantity": 1,
+                },
+            ],
+            currency=Order.Currency.USD,
+        )
+
+        customers = Customer.objects.filter(
+            phone_number="96170123456",
+        )
+        self.assertEqual(customers.count(), 2)
+        self.assertNotEqual(order_a.customer.shop_id, order_b.customer.shop_id)
+
+    def test_invalid_phone_is_rejected_without_creating_order(self):
+        original_stock = self.usd_variant.stock_quantity
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Enter a valid phone number.",
+        ):
+            self.create_delivery_order(customer_phone="not-a-phone")
+
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(Customer.objects.count(), 0)
+        self.assertEqual(StockMovement.objects.count(), 0)
+
+        self.usd_variant.refresh_from_db()
+        self.assertEqual(
+            self.usd_variant.stock_quantity,
+            original_stock,
+        )
+
 
     def test_transition_new_to_preparing(self):
         order = self.create_delivery_order()
@@ -1050,6 +1286,163 @@ class OrderSuccessViewTests(TestCase):
         self.assertEqual(_payment_method_display(order), "Not available")
 
 
+class OrderSuccessWhatsAppTests(TestCase):
+    """SCRUM-89: the success page's "contact the seller" link — always
+    built from the order's own shop, digits only, never another shop's."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "whatsapp-owner@example.com", "testpassword123",
+            full_name="WhatsApp Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        self.shop = Shop.objects.create(
+            owner=self.owner, name="Sara's Closet", slug="saras-closet-whatsapp",
+            exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
+            whatsapp="96170123456",
+        )
+        Subscription.objects.create(
+            shop=self.shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        self.category = Category.objects.create(shop=self.shop, name="Clothing")
+        self.product = Product.objects.create(
+            shop=self.shop, category=self.category, name="Denim Jacket",
+        )
+        self.variant = ProductVariant.objects.create(
+            product=self.product, color="Indigo", size="M",
+            unit_price="45.00", stock_quantity=10,
+        )
+        self.payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
+        )
+
+    def _checkout(self, shop=None, variant=None, payment_method=None, phone="70999888"):
+        shop = shop or self.shop
+        variant = variant or self.variant
+        payment_method = payment_method or self.payment_method
+
+        self.client.post(reverse("cart_add", args=[shop.slug]), {
+            "variant_id": variant.pk, "quantity": 1,
+        })
+        self.client.post(reverse("checkout", args=[shop.slug]), {
+            "customer_name": "John Shopper",
+            "customer_phone": phone,
+            "fulfillment_type": "PICKUP",
+            "selected_payment_method": payment_method.pk,
+            "currency": "USD",
+        })
+        return Order.objects.filter(shop=shop).latest("created_at")
+
+    def test_success_page_link_has_shops_digits_and_no_text_param(self):
+        order = self._checkout()
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertContains(response, "https://wa.me/96170123456")
+        self.assertNotContains(response, "text=")
+
+    def test_two_shops_each_get_their_own_number(self):
+        order = self._checkout()
+
+        other_owner = User.objects.create_user(
+            "whatsapp-other-owner@example.com", "testpassword123",
+            full_name="Other Owner", status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+        other_shop = Shop.objects.create(
+            owner=other_owner, name="Other Shop", slug="other-shop-whatsapp",
+            exchange_rate_lbp_per_usd="89500.00", pickup_available=True,
+            whatsapp="9613987654",
+        )
+        Subscription.objects.create(
+            shop=other_shop, plan=Subscription.Plan.BASIC,
+            status=Subscription.Status.ACTIVE, starts_on=date.today(),
+        )
+        other_category = Category.objects.create(shop=other_shop, name="Accessories")
+        other_product = Product.objects.create(
+            shop=other_shop, category=other_category, name="Leather Belt",
+        )
+        other_variant = ProductVariant.objects.create(
+            product=other_product, color="Brown", size="M",
+            unit_price="20.00", stock_quantity=5,
+        )
+        other_payment_method = ShopPaymentMethod.objects.create(
+            shop=other_shop, method_name=ShopPaymentMethod.MethodName.CASH, enabled=True,
+        )
+        other_order = self._checkout(
+            shop=other_shop, variant=other_variant, payment_method=other_payment_method,
+            phone="71222333",
+        )
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+        other_response = self.client.get(
+            reverse("order_success", args=[other_shop.slug, other_order.tracking_token])
+        )
+
+        self.assertContains(response, "https://wa.me/96170123456")
+        self.assertNotContains(response, "https://wa.me/9613987654")
+        self.assertContains(other_response, "https://wa.me/9613987654")
+        self.assertNotContains(other_response, "https://wa.me/96170123456")
+
+    def test_success_page_link_is_normalized_from_settings_form(self):
+        self.client.force_login(self.owner)
+
+        for owner_input in ("+961 3 123 456", "+961 03 123 456"):
+            with self.subTest(owner_input=owner_input):
+                response = self.client.post(
+                    reverse("shops:settings"),
+                    {
+                        "name": "Sara's Closet",
+                        "whatsapp": owner_input,
+                        "instagram": "",
+                        "pickup_available": "on",
+                    },
+                )
+
+                self.assertRedirects(response, reverse("shops:settings"))
+
+                self.shop.refresh_from_db()
+                self.assertEqual(self.shop.whatsapp, "9613123456")
+
+                order = self._checkout()
+
+                success = self.client.get(
+                    reverse("order_success", args=[self.shop.slug, order.tracking_token])
+                )
+
+                self.assertContains(success, "https://wa.me/9613123456")
+                self.assertNotContains(success, "https://wa.me/96103123456")
+
+    def test_shop_with_no_whatsapp_number_renders_without_error(self):
+        self.shop.whatsapp = ""
+        self.shop.save(update_fields=["whatsapp"])
+        order = self._checkout()
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "wa.me")
+        self.assertContains(response, "contact")
+
+    def test_order_exists_in_database_when_success_page_loads(self):
+        order = self._checkout()
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
+        response = self.client.get(
+            reverse("order_success", args=[self.shop.slug, order.tracking_token])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
+
 class OrderTrackingViewTests(TestCase):
     """The persistent "where's my order" page — same lookup rules as
     order_success (tracking_token + shop, never pk), plus the status/
@@ -1216,3 +1609,63 @@ class OrderTrackingViewTests(TestCase):
         )
 
         self.assertIn("Not available", html)
+
+
+class OrderCustomerIsolationTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "order-owner@example.com",
+            "testpassword123",
+            full_name="Order Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.shop_a = Shop.objects.create(
+            owner=self.owner,
+            name="Shop A",
+            slug="order-shop-a",
+            exchange_rate_lbp_per_usd=89500,
+        )
+
+        self.shop_b = Shop.objects.create(
+            owner=self.owner,
+            name="Shop B",
+            slug="order-shop-b",
+            exchange_rate_lbp_per_usd=89500,
+        )
+
+        self.payment_method = ShopPaymentMethod.objects.create(
+            shop=self.shop_a,
+            method_name=ShopPaymentMethod.MethodName.CASH,
+        )
+
+        self.customer_from_shop_b = Customer.objects.create(
+            shop=self.shop_b,
+            full_name="Shop B Customer",
+            phone_number="+961 70-123-(456)",
+        )
+
+    def test_order_rejects_customer_from_another_shop(self):
+        order = Order(
+            shop=self.shop_a,
+            customer=self.customer_from_shop_b,
+            selected_payment_method=self.payment_method,
+            order_number="TEST-001",
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            customer_name_snapshot=self.customer_from_shop_b.full_name,
+            customer_phone_snapshot=self.customer_from_shop_b.phone_number,
+            items_total=Decimal("0.00"),
+            total=Decimal("0.00"),
+            currency=Order.Currency.USD,
+            fx_rate_snapshot=Decimal("89500.00"),
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            order.full_clean()
+
+        self.assertIn("customer", context.exception.message_dict)
+        self.assertEqual(
+            context.exception.message_dict["customer"][0],
+            "Customer must belong to the selected shop.",
+        )

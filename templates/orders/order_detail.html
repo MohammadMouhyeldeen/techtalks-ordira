@@ -26,9 +26,18 @@
             </p>
         </div>
 
-        <span class="order-status order-status-{{ order.status|lower }}">
-            {{ order.get_status_display }}
-        </span>
+                <div class="order-detail-controls">
+            <a
+                href="{% url 'orders:invoice-pdf' shop_pk=shop.pk order_pk=order.pk %}"
+                class="btn btn-primary"
+            >
+                Download invoice
+            </a>
+
+            <span class="order-status order-status-{{ order.status|lower }}">
+                {{ order.get_status_display }}
+            </span>
+        </div>
     </div>
 
     {% if order.status == "NEW" or order.status == "PREPARING" or order.status == "HANDED_TO_DELIVERY" %}
@@ -209,7 +218,41 @@
         <p class="payment-form-description">
             Record the payment received from the customer.
         </p>
+              <div
+            class="payment-expectation"
+            id="payment-expectation"
+            data-expected-usd="{{ expected_payment_amounts.USD }}"
+            data-expected-lbp="{{ expected_payment_amounts.LBP }}"
+        >
+            <div class="payment-expectation-row">
+                <span>Order total</span>
+                <strong id="payment-order-total">
+                    {{ order.total }} {{ order.currency }}
+                </strong>
+            </div>
 
+            <div class="payment-expectation-row">
+                <span>Customer selected</span>
+                <strong id="payment-checkout-method">
+                    {{ selected_payment_method_display }}
+                </strong>
+            </div>
+
+            <div
+                class="
+                    payment-expectation-row
+                    payment-expectation-current
+                "
+            >
+                <span>Expected payment</span>
+                <strong
+                    id="expected-payment-amount"
+                    aria-live="polite"
+                >
+                    {{ order.total }} {{ order.currency }}
+                </strong>
+            </div>
+        </div>
         <form
             method="post"
             action="{% url 'payments:record-payment' shop_pk=shop.pk order_pk=order.pk %}"
@@ -334,4 +377,56 @@
     {% endif %}
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+{% if payment_form %}
+<script>
+    (() => {
+        const expectation = document.getElementById("payment-expectation");
+        const amountInput = document.getElementById(
+            "{{ payment_form.amount.id_for_label }}"
+        );
+        const currencySelect = document.getElementById(
+            "{{ payment_form.currency.id_for_label }}"
+        );
+        const expectedAmount = document.getElementById(
+            "expected-payment-amount"
+        );
+
+        if (
+            !expectation ||
+            !amountInput ||
+            !currencySelect ||
+            !expectedAmount
+        ) {
+            return;
+        }
+
+        const expectedAmounts = {
+            USD: expectation.dataset.expectedUsd,
+            LBP: expectation.dataset.expectedLbp,
+        };
+
+        const updateExpectedAmount = () => {
+            const currency = currencySelect.value;
+            const amount = expectedAmounts[currency];
+
+            if (!amount) {
+                return;
+            }
+
+            expectedAmount.textContent = `${amount} ${currency}`;
+            amountInput.value = amount;
+        };
+
+        currencySelect.addEventListener(
+            "change",
+            updateExpectedAmount
+        );
+
+        updateExpectedAmount();
+    })();
+</script>
+{% endif %}
 {% endblock %}

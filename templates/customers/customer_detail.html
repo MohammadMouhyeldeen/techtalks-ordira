@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ customer.full_name }} | Ordira{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'orders/css/orders.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'customers/css/customers.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="orders-page">
+    <a
+        href="{% url 'customers:list' shop_pk=shop.pk %}"
+        class="order-back-link"
+    >
+        &larr; Back to customers
+    </a>
+
+    <div class="order-detail-header">
+        <div>
+            <p class="order-detail-label">Customer</p>
+            <h1>{{ customer.full_name }}</h1>
+            <p>{{ customer.phone_number }}</p>
+        </div>
+    </div>
+
+    <section class="order-card">
+        <h2>Outstanding balance</h2>
+
+        {% if outstanding_balances %}
+            <ul class="balance-list">
+                {% for currency, amount in outstanding_balances.items %}
+                    <li><strong>{{ amount }} {{ currency }}</strong></li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>0.00 — nothing outstanding.</p>
+        {% endif %}
+    </section>
+
+    <section class="order-card">
+        <h2>Orders</h2>
+
+        {% if orders %}
+            <div class="orders-table-wrapper">
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order number</th>
+                            <th>Status</th>
+                            <th>Total</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for order in orders %}
+                            <tr>
+                                <td>
+                                    <strong>{{ order.order_number }}</strong>
+                                </td>
+
+                                <td>
+                                    <span class="order-status order-status-{{ order.status|lower }}">
+                                        {{ order.get_status_display }}
+                                    </span>
+                                    {% if order.pk in outstanding_order_ids %}
+                                        <span class="outstanding-badge">Outstanding</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {{ order.total }} {{ order.currency }}
+                                </td>
+
+                                <td>
+                                    {{ order.created_at|date:"M d, Y H:i" }}
+                                </td>
+
+                                <td>
+                                    <a
+                                        class="order-link"
+                                        href="{% url 'orders:order-detail' shop_pk=shop.pk order_pk=order.pk %}"
+                                    >
+                                        View details
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p>This customer hasn't placed any orders yet.</p>
+        {% endif %}
+    </section>
+</div>
+
+{% endblock %}

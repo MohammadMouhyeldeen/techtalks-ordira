@@ -17,6 +17,11 @@ urlpatterns = [
         name="order-action",
     ),
     path(
+        "shops/<int:shop_pk>/orders/<int:order_pk>/invoice.pdf",
+        views.merchant_order_invoice_pdf,
+        name="invoice-pdf",
+    ),
+    path(
         "shops/<int:shop_pk>/orders/<int:order_pk>/",
         views.merchant_order_detail,
         name="order-detail",

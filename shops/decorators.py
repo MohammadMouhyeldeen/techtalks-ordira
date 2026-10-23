@@ -2,8 +2,12 @@ from functools import wraps
 
 from django.shortcuts import render
 
+from accounts.models import User
+
 from .helpers import is_catalog_public
 from .models import Shop
+
+
 
 
 def public_shop_required(view_func):
@@ -29,6 +33,14 @@ def public_shop_required(view_func):
                 "storefront/unavailable.html",
                 {"state": "shop_not_found"},
                 status=404,
+            )
+
+        if shop.owner.status == User.Status.SUSPENDED:
+            return render(
+                request,
+                "storefront/unavailable.html",
+                {"state": "unavailable", "shop": shop},
+                status=200,
             )
 
         if not is_catalog_public(shop):

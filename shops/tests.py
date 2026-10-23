@@ -85,6 +85,29 @@ class ShopSetupTests(TestCase):
             "89500.00",
         )
 
+    def test_shop_setup_requires_whatsapp_number(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "Missing WhatsApp Shop",
+                "slug": "missing-whatsapp-shop",
+                "whatsapp": "",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("whatsapp", response.context["form"].errors)
+        self.assertFalse(
+            Shop.objects.filter(
+                slug="missing-whatsapp-shop"
+            ).exists()
+        )
+
     def test_duplicate_slug_is_rejected(self):
         self.client.force_login(self.user)
 
@@ -108,7 +131,7 @@ class ShopSetupTests(TestCase):
             {
                 "name": "Another Shop",
                 "slug": "existing-shop",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -135,7 +158,7 @@ class ShopSetupTests(TestCase):
             {
                 "name": "Invalid Rate Shop",
                 "slug": "invalid-rate-shop",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "0",
                 "pickup_available": "",
@@ -158,7 +181,7 @@ class ShopSetupTests(TestCase):
             {
                 "name": "Cash Default Shop",
                 "slug": "cash-default-shop",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -169,6 +192,7 @@ class ShopSetupTests(TestCase):
             response,
             reverse("shops:dashboard"),
         )
+
 
         shop = Shop.objects.get(slug="cash-default-shop")
 
@@ -224,7 +248,7 @@ class ShopSetupReviewTests(TestCase):
             {
                 "name": "Admin Shop",
                 "slug": "admin-shop",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -274,7 +298,7 @@ class ShopSetupReviewTests(TestCase):
             {
                 "name": "Second Shop",
                 "slug": "second-shop",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -319,7 +343,33 @@ class ShopSetupReviewTests(TestCase):
             response,
             "shops/dashboard.html",
         )
+        self.assertContains(
+            response,
+            "Add your WhatsApp number so customers can reach you",
+        )
+        self.assertContains(
+            response,
+            f'href="{reverse("shops:settings")}"',
+        )
 
+    def test_dashboard_hides_whatsapp_notice_when_number_is_set(self):
+        self.client.force_login(self.owner)
+
+        Shop.objects.create(
+            owner=self.owner,
+            name="Shop With WhatsApp",
+            slug="shop-with-whatsapp",
+            whatsapp="96170123456",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            "Add your WhatsApp number so customers can reach you",
+        )
     def test_dashboard_renders_shell_template_includes(self):
         """
         Verify that dashboard extends base.html and the shell (base.html)
@@ -363,7 +413,7 @@ class ShopSetupReviewTests(TestCase):
             {
                 "name": "Luna Fashion",
                 "slug": "Luna-Fashion",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -407,7 +457,7 @@ class ShopSetupReviewTests(TestCase):
             {
                 "name": "Another Luna",
                 "slug": "LUNA",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "exchange_rate_lbp_per_usd": "89500.00",
                 "pickup_available": "",
@@ -509,6 +559,94 @@ class ShopSetupReviewTests(TestCase):
             ).exists()
         )
 
+    def test_whatsapp_keeps_country_code_without_trunk_zero(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "WhatsApp Trunk Zero Shop",
+                "slug": "whatsapp-trunk-zero-shop",
+                "whatsapp": "+961 3 123 456",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.dashboard_url,
+        )
+
+        shop = Shop.objects.get(
+            slug="whatsapp-trunk-zero-shop"
+        )
+
+        self.assertEqual(
+            shop.whatsapp,
+            "9613123456",
+        )
+
+    def test_whatsapp_strips_stray_zero_after_country_code(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.setup_url,
+            {
+                "name": "WhatsApp Stray Zero Shop",
+                "slug": "whatsapp-stray-zero-shop",
+                "whatsapp": "+961 03 123 456",
+                "instagram": "",
+                "exchange_rate_lbp_per_usd": "89500.00",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.dashboard_url,
+        )
+
+        shop = Shop.objects.get(
+            slug="whatsapp-stray-zero-shop"
+        )
+
+        self.assertEqual(
+            shop.whatsapp,
+            "9613123456",
+        )
+
+    def test_whatsapp_still_rejects_zero_zero_prefix_and_local_format(self):
+        self.client.force_login(self.owner)
+
+        cases = {
+            "00961 03 123 456": "Enter the WhatsApp number with the country code.",
+            "03 123 456": "Enter a WhatsApp number with 10 to 15 digits",
+        }
+
+        for index, (raw, message) in enumerate(cases.items()):
+            with self.subTest(raw=raw):
+                response = self.client.post(
+                    self.setup_url,
+                    {
+                        "name": f"WhatsApp Reject Shop {index}",
+                        "slug": f"whatsapp-reject-shop-{index}",
+                        "whatsapp": raw,
+                        "instagram": "",
+                        "exchange_rate_lbp_per_usd": "89500.00",
+                        "pickup_available": "",
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, message)
+                self.assertFalse(
+                    Shop.objects.filter(
+                        slug=f"whatsapp-reject-shop-{index}"
+                    ).exists()
+                )
+
     def test_logo_over_2_mb_is_rejected(self):
         self.client.force_login(self.owner)
 
@@ -543,7 +681,7 @@ class ShopSetupReviewTests(TestCase):
             {
                 "name": "Large Logo Shop",
                 "slug": "large-logo-shop",
-                "whatsapp": "",
+                "whatsapp": "96170123456",
                 "instagram": "",
                 "logo": large_logo,
                 "exchange_rate_lbp_per_usd": "89500.00",
@@ -563,6 +701,65 @@ class ShopSetupReviewTests(TestCase):
                 slug="large-logo-shop"
             ).exists()
         )
+
+
+
+class ShopSettingsTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            "shop-settings-owner@example.com",
+            "testpassword123",
+            full_name="Settings Shop Owner",
+            status=User.Status.ACTIVE,
+            role=User.Role.SHOP_OWNER,
+        )
+
+        self.shop = Shop.objects.create(
+            owner=self.owner,
+            name="Settings Test Shop",
+            slug="settings-test-shop",
+            whatsapp="96170123456",
+            exchange_rate_lbp_per_usd="89500.00",
+        )
+
+        self.url = reverse("shops:settings")
+        self.client.force_login(self.owner)
+
+    def test_settings_requires_whatsapp_number(self):
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Settings Test Shop",
+                "whatsapp": "",
+                "instagram": "",
+                "pickup_available": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("whatsapp", response.context["form"].errors)
+
+        self.shop.refresh_from_db()
+        self.assertEqual(self.shop.whatsapp, "96170123456")
+
+    def test_settings_saves_valid_whatsapp_number(self):
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Updated Settings Shop",
+                "whatsapp": "+961 76 987 654",
+                "instagram": "@updatedshop",
+                "pickup_available": "on",
+            },
+        )
+
+        self.assertRedirects(response, self.url)
+
+        self.shop.refresh_from_db()
+        self.assertEqual(self.shop.name, "Updated Settings Shop")
+        self.assertEqual(self.shop.whatsapp, "96176987654")
+        self.assertEqual(self.shop.instagram, "@updatedshop")
+        self.assertTrue(self.shop.pickup_available)
 
 
 class PaymentMethodSettingsTests(TestCase):
@@ -1905,7 +2102,7 @@ class DeliveryZoneTests(TestCase):
         customer = Customer.objects.create(
             shop=self.shop,
             full_name="Test Customer",
-            phone_number="961701234567",
+            phone_number="96170123456",
         )
 
         payment_method = ShopPaymentMethod.objects.create(

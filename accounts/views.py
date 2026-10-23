@@ -8,13 +8,18 @@ from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.views import PasswordResetCompleteView, PasswordResetConfirmView
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
+from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.views.decorators.http import require_GET
 
 from .forms import AdminCreateUserForm, ChangePasswordForm, LoginForm, RegistrationForm
 from .models import User
+
+from orders.models import Order
+from shops.models import Shop
 
 logger = logging.getLogger(__name__)
 
@@ -121,12 +126,73 @@ def admin_dashboard(request):
     )
     active_paginator = Paginator(active_qs, 25)
     active_page_obj = active_paginator.get_page(request.GET.get("apage"))
+    suspended_qs = (
+        User.objects
+        .filter(
+            role=User.Role.SHOP_OWNER,
+            status=User.Status.SUSPENDED,
+        )
+        .order_by("full_name")
+    )
+    suspended_paginator = Paginator(suspended_qs, 25)
+    suspended_page_obj = suspended_paginator.get_page(
+        request.GET.get("spage")
+    )
+
 
     return render(request, "accounts/admin_dashboard.html", {
         "page_obj": page_obj,
         "active_page_obj": active_page_obj,
+        "suspended_page_obj": suspended_page_obj,
     })
 
+@login_required
+@require_GET
+def admin_orders(request):
+    """Display the latest 100 orders across shops for platform admins."""
+    denied = _require_admin(request)
+    if denied:
+        return denied
+
+    shops = Shop.objects.order_by("name")
+
+    selected_shop = request.GET.get("shop", "").strip()
+    selected_status = request.GET.get("status", "").strip()
+
+    valid_shop_ids = {str(shop.pk) for shop in shops}
+    valid_statuses = {value for value, _label in Order.Status.choices}
+
+    if selected_shop not in valid_shop_ids:
+        selected_shop = ""
+
+    if selected_status not in valid_statuses:
+        selected_status = ""
+
+    orders_queryset = (
+        Order.objects
+        .select_related("shop")
+        .order_by("-created_at", "-pk")
+    )
+
+    if selected_shop:
+        orders_queryset = orders_queryset.filter(shop_id=selected_shop)
+
+    if selected_status:
+        orders_queryset = orders_queryset.filter(status=selected_status)
+
+    orders = orders_queryset[:100]
+
+    return render(
+        request,
+        "accounts/admin_orders.html",
+        {
+            "orders": orders,
+            "shops": shops,
+            "selected_shop": selected_shop,
+            "selected_status": selected_status,
+            "status_choices": Order.Status.choices,
+        },
+    )
 
 @login_required
 def approve_user(request, user_id):
@@ -207,6 +273,86 @@ def reject_user(request, user_id):
     messages.success(
         request,
         f"{target.full_name} ({target.email}) has been rejected and their account suspended.",
+    )
+    return redirect("accounts:admin_dashboard")
+
+@login_required
+def suspend_shop_owner(request, user_id):
+    denied = _require_admin(request)
+    if denied:
+        return denied
+
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    with transaction.atomic():
+        target = get_object_or_404(
+            User.objects.select_for_update(),
+            pk=user_id,
+        )
+
+        if target.pk == request.user.pk:
+            messages.error(request, "You cannot suspend your own account.")
+            return redirect("accounts:admin_dashboard")
+
+        if target.role != User.Role.SHOP_OWNER:
+            messages.error(request, "Only shop-owner accounts can be suspended.")
+            return redirect("accounts:admin_dashboard")
+
+        if target.status != User.Status.ACTIVE:
+            messages.error(
+                request,
+                f"{target.full_name} ({target.email}) is not active. "
+                "No change made.",
+            )
+            return redirect("accounts:admin_dashboard")
+
+        target.status = User.Status.SUSPENDED
+        target.save(update_fields=["status"])
+
+    messages.success(
+        request,
+        f"{target.full_name} ({target.email}) has been suspended.",
+    )
+    return redirect("accounts:admin_dashboard")
+
+
+@login_required
+def reactivate_shop_owner(request, user_id):
+    denied = _require_admin(request)
+    if denied:
+        return denied
+
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    with transaction.atomic():
+        target = get_object_or_404(
+            User.objects.select_for_update(),
+            pk=user_id,
+        )
+
+        if target.role != User.Role.SHOP_OWNER:
+            messages.error(
+                request,
+                "Only shop-owner accounts can be reactivated.",
+            )
+            return redirect("accounts:admin_dashboard")
+
+        if target.status != User.Status.SUSPENDED:
+            messages.error(
+                request,
+                f"{target.full_name} ({target.email}) is not suspended. "
+                "No change made.",
+            )
+            return redirect("accounts:admin_dashboard")
+
+        target.status = User.Status.ACTIVE
+        target.save(update_fields=["status"])
+
+    messages.success(
+        request,
+        f"{target.full_name} ({target.email}) has been reactivated.",
     )
     return redirect("accounts:admin_dashboard")
 

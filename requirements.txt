@@ -1,5 +1,6 @@
 asgiref==3.12.1
 Django==5.2.17
+reportlab==5.0.1
 pillow==12.3.0
 psycopg==3.3.5
 psycopg-binary==3.3.5

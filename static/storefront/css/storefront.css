@@ -366,11 +366,11 @@
   from{ opacity:0;transform:translateY(18px); }
   to{ opacity:1;transform:translateY(0); }
 }
-.cart-line, .checkout-section, .cart-summary, .order-success-hero, .order-tracking-hero{
+.cart-line, .checkout-section, .cart-summary, .order-success-hero, .order-tracking-hero, .order-success-page__whatsapp{
   animation:fade-up-in .55s var(--ease) both;
 }
 @media (prefers-reduced-motion: reduce){
-  .cart-line, .checkout-section, .cart-summary, .order-success-hero, .order-tracking-hero,
+  .cart-line, .checkout-section, .cart-summary, .order-success-hero, .order-tracking-hero, .order-success-page__whatsapp,
   .order-success-hero__icon, .order-success-hero__icon::before, .order-success-hero__icon::after,
   .order-success-hero__icon svg path{
     animation:none!important;
@@ -644,9 +644,26 @@ select.form-input:focus{ outline:none;box-shadow:0 0 0 4px var(--primary-100); }
 }
 .order-success-hero h1{ font-size:1.5rem; }
 .order-success-hero p{ color:var(--ink-500);font-size:.92rem; }
+.order-success-hero__number{
+  font-size:clamp(1.8rem,5vw,2.4rem);font-weight:800;letter-spacing:.01em;
+  color:var(--ink-900);
+}
+.order-success-hero__status{ text-transform:uppercase;letter-spacing:.04em;font-weight:700;font-size:.78rem!important; }
 .order-success-details .checkout-section p{ font-size:.9rem;color:var(--ink-700);margin-bottom:4px; }
+.order-success-page__whatsapp{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  margin:28px auto 0;text-align:center;
+}
+.order-success-page__whatsapp .btn{
+  white-space:normal;text-align:center;max-width:420px;width:100%;
+}
+.order-success-page__whatsapp .btn-primary{
+  background:linear-gradient(135deg,#25d366,#128c7e);box-shadow:0 10px 28px -8px rgba(18,140,126,.45);
+}
+.order-success-page__whatsapp .btn-primary:hover{ box-shadow:0 14px 32px -6px rgba(18,140,126,.5); }
+.order-success-page__no-whatsapp{ color:var(--ink-500);font-size:.9rem;max-width:380px; }
 .order-success-page__actions{
-  display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:32px auto 0;
+  display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:18px auto 0;
 }
 
 /* ---- order tracking ---- */

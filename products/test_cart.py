@@ -440,6 +440,27 @@ class CheckoutViewTests(TestCase):
         data.update(overrides)
         return data
 
+    def test_suspended_owner_cannot_receive_checkout_order(self):
+        # Add an item while the shop owner is still active.
+        self._add_to_cart()
+
+        # Suspend the owner before checkout is submitted.
+        self.owner.status = User.Status.SUSPENDED
+        self.owner.save(update_fields=["status"])
+
+        response = self.client.post(
+            self.checkout_url,
+            self._valid_post_data(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "storefront/unavailable.html",
+        )
+        self.assertEqual(response.context["state"], "unavailable")
+        self.assertEqual(Order.objects.count(), 0)
+
     def test_empty_cart_redirects_to_cart_view_without_rendering_form(self):
         response = self.client.get(self.checkout_url)
 
@@ -503,6 +524,22 @@ class CheckoutViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Not enough stock")
         self.assertEqual(Order.objects.count(), 0)
+
+    def test_invalid_phone_rerenders_with_error_and_creates_no_order(self):
+        self._add_to_cart()
+
+        response = self.client.post(
+            self.checkout_url,
+            self._valid_post_data(customer_phone="not-a-phone"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter a valid phone number.")
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(self.shop.customers.count(), 0)
+
+        self.variant.refresh_from_db()
+        self.assertEqual(self.variant.stock_quantity, 10)
 
     def test_missing_zone_and_address_for_delivery_rerenders_with_errors(self):
         self._add_to_cart()

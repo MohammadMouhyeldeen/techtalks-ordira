@@ -31,6 +31,14 @@
     gap: 20px;
 }
 
+.order-detail-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .orders-header h1,
 .order-detail-header h1 {
     margin: 0 0 8px;
@@ -402,6 +410,11 @@
         flex-direction: column;
     }
 
+    .order-detail-controls {
+    justify-content: flex-start;
+    width: 100%;
+    }
+
     .order-filter {
         align-items: stretch;
         flex-direction: column;
@@ -461,6 +474,43 @@
     margin: -8px 0 20px;
     color: #71717a;
     line-height: 1.6;
+}
+
+.payment-expectation {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.payment-expectation-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 14px 16px;
+    border: 1px solid #e4e4e7;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.payment-expectation-row span {
+    color: #71717a;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.payment-expectation-row strong {
+    color: #27272a;
+    overflow-wrap: anywhere;
+}
+
+.payment-expectation-current {
+    border-color: #c7d2fe;
+    background: #eef2ff;
+}
+
+.payment-expectation-current strong {
+    color: #4338ca;
 }
 
 .payment-form {
@@ -559,4 +609,8 @@
     .payment-submit-button {
         width: 100%;
     }
+
+    .payment-expectation {
+    grid-template-columns: 1fr;
+}
 }

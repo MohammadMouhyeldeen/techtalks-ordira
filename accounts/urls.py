@@ -23,6 +23,11 @@ urlpatterns = [
         views.admin_dashboard,
         name="admin_dashboard",
     ),
+    path(
+        "admin-dashboard/orders/",
+        views.admin_orders,
+        name="admin_orders",
+    ),
     # SCRUM-40: Admin approval actions — POST-only, nested under admin-dashboard/
     path(
         "admin-dashboard/approve/<int:user_id>/",
@@ -33,6 +38,16 @@ urlpatterns = [
         "admin-dashboard/reject/<int:user_id>/",
         views.reject_user,
         name="reject_user",
+    ),
+    path(
+        "admin-dashboard/suspend/<int:user_id>/",
+        views.suspend_shop_owner,
+        name="suspend_shop_owner",
+    ),
+    path(
+        "admin-dashboard/reactivate/<int:user_id>/",
+        views.reactivate_shop_owner,
+        name="reactivate_shop_owner",
     ),
     # SCRUM-41: Admin direct user creation + one-time set-password link
     path(

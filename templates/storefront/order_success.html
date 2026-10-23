@@ -13,16 +13,30 @@
       <svg width="28" height="28" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </span>
     <h1>Order received</h1>
-    <p>Order <strong>{{ order.order_number }}</strong> · {{ order.get_status_display }}</p>
+    <p class="order-success-hero__number">{{ order.order_number }}</p>
+    <p class="order-success-hero__status">{{ order.get_status_display }}</p>
   </div>
 
   {% include "storefront/_order_overview.html" %}
+
+  <div class="order-success-page__whatsapp">
+    {% if whatsapp_link %}
+      <a href="{{ whatsapp_link }}" id="whatsappButton" class="btn btn-primary btn-lg" target="_blank" rel="noopener">
+        <svg width="18" height="18" aria-hidden="true"><use href="#i-whatsapp"/></svg>
+        Contact the seller on WhatsApp to arrange payment
+      </a>
+    {% else %}
+      <p class="order-success-page__no-whatsapp">
+        This shop hasn't set up WhatsApp yet — please contact {{ shop.name|default:"the shop" }} directly to arrange payment.
+      </p>
+    {% endif %}
+  </div>
 
   <div class="order-success-page__actions">
     <a href="{% url 'track_order' shop.slug order.tracking_token %}" class="btn btn-secondary btn-lg">
       Track your order
     </a>
-    <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-primary btn-lg">
+    <a href="{% url 'public_catalog' shop.slug %}" class="btn btn-ghost btn-lg">
       Back to shop
     </a>
   </div>
@@ -53,5 +67,16 @@
     el.textContent = "0.00";
     requestAnimationFrame(tick);
   })();
+
+  {% if whatsapp_link %}
+  (() => {
+    // Button stays in the DOM regardless — this is just an automatic
+    // best-effort nudge for whoever doesn't click it themselves, and a
+    // blocked/ignored redirect leaves the button as the fallback.
+    setTimeout(() => {
+      window.location.href = "{{ whatsapp_link }}";
+    }, 3000);
+  })();
+  {% endif %}
 </script>
 {% endblock %}

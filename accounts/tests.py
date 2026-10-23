@@ -2793,3 +2793,222 @@ class ChangePasswordAdminTests(TestCase):
         admin.refresh_from_db()
         self.assertTrue(admin.check_password("NewPass456!"))
         self.assertFalse(admin.check_password("OldPass123!"))
+
+
+
+class ShopOwnerSuspendReactivateTests(TestCase):
+    def setUp(self):
+        self.admin = self._make_user(
+            "suspension-admin@example.com",
+            "Platform Admin",
+            User.Role.ADMIN,
+            User.Status.ACTIVE,
+        )
+        self.owner = self._make_user(
+            "suspension-owner@example.com",
+            "Active Shop Owner",
+            User.Role.SHOP_OWNER,
+            User.Status.ACTIVE,
+        )
+        self.suspended_owner = self._make_user(
+            "suspended-owner@example.com",
+            "Suspended Shop Owner",
+            User.Role.SHOP_OWNER,
+            User.Status.SUSPENDED,
+        )
+
+    def _make_user(self, email, full_name, role, status):
+        return User.objects.create_user(
+            email=email,
+            password="GoodPassword123!",
+            full_name=full_name,
+            role=role,
+            status=status,
+        )
+
+    def _url(self, action, user):
+        return reverse(f"accounts:{action}", args=[user.pk])
+
+    def test_admin_can_suspend_owner_and_success_message_names_them(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            self._url("suspend_shop_owner", self.owner),
+            follow=True,
+        )
+
+        self.owner.refresh_from_db()
+        self.assertEqual(self.owner.status, User.Status.SUSPENDED)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Active Shop Owner (suspension-owner@example.com) has been suspended.",
+        )
+
+    def test_suspended_owner_is_redirected_on_next_request(self):
+        owner_client = Client()
+        owner_client.force_login(self.owner)
+
+        self.client.force_login(self.admin)
+        self.client.post(self._url("suspend_shop_owner", self.owner))
+
+        response = owner_client.get(reverse("shops:dashboard"))
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:account_suspended"),
+            fetch_redirect_response=False,
+        )
+
+    def test_admin_can_reactivate_owner_and_restore_access(self):
+        owner_client = Client()
+        owner_client.force_login(self.suspended_owner)
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self._url("reactivate_shop_owner", self.suspended_owner),
+            follow=True,
+        )
+
+        self.suspended_owner.refresh_from_db()
+        self.assertEqual(self.suspended_owner.status, User.Status.ACTIVE)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Suspended Shop Owner (suspended-owner@example.com) has been reactivated.",
+        )
+
+        owner_response = owner_client.get(reverse("shops:dashboard"))
+        self.assertRedirects(
+            owner_response,
+            reverse("shops:setup"),
+            fetch_redirect_response=False,
+        )
+
+    def test_admin_dashboard_shows_suspend_and_reactivate_actions(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("accounts:admin_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Suspend")
+        self.assertContains(response, "Reactivate")
+        self.assertContains(
+            response,
+            self._url("suspend_shop_owner", self.owner),
+        )
+        self.assertContains(
+            response,
+            self._url("reactivate_shop_owner", self.suspended_owner),
+        )
+
+    def test_shop_owner_cannot_call_either_action(self):
+        another_owner = self._make_user(
+            "another-owner@example.com",
+            "Another Owner",
+            User.Role.SHOP_OWNER,
+            User.Status.ACTIVE,
+        )
+        self.client.force_login(self.owner)
+
+        suspend_response = self.client.post(
+            self._url("suspend_shop_owner", another_owner)
+        )
+        reactivate_response = self.client.post(
+            self._url("reactivate_shop_owner", self.suspended_owner)
+        )
+
+        self.assertRedirects(
+            suspend_response,
+            reverse("shops:dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.assertRedirects(
+            reactivate_response,
+            reverse("shops:dashboard"),
+            fetch_redirect_response=False,
+        )
+
+        another_owner.refresh_from_db()
+        self.suspended_owner.refresh_from_db()
+        self.assertEqual(another_owner.status, User.Status.ACTIVE)
+        self.assertEqual(
+            self.suspended_owner.status,
+            User.Status.SUSPENDED,
+        )
+
+    def test_anonymous_user_cannot_call_either_action(self):
+        for action, target in (
+            ("suspend_shop_owner", self.owner),
+            ("reactivate_shop_owner", self.suspended_owner),
+        ):
+            response = self.client.post(self._url(action, target))
+            self.assertEqual(response.status_code, 302)
+            self.assertIn(reverse("accounts:login"), response.url)
+
+        self.owner.refresh_from_db()
+        self.suspended_owner.refresh_from_db()
+        self.assertEqual(self.owner.status, User.Status.ACTIVE)
+        self.assertEqual(
+            self.suspended_owner.status,
+            User.Status.SUSPENDED,
+        )
+
+    def test_get_is_rejected_for_both_actions(self):
+        self.client.force_login(self.admin)
+
+        for action, target in (
+            ("suspend_shop_owner", self.owner),
+            ("reactivate_shop_owner", self.suspended_owner),
+        ):
+            response = self.client.get(self._url(action, target))
+            self.assertEqual(response.status_code, 405)
+
+        self.owner.refresh_from_db()
+        self.suspended_owner.refresh_from_db()
+        self.assertEqual(self.owner.status, User.Status.ACTIVE)
+        self.assertEqual(
+            self.suspended_owner.status,
+            User.Status.SUSPENDED,
+        )
+
+    def test_admin_cannot_suspend_self_or_another_admin(self):
+        another_admin = self._make_user(
+            "another-admin@example.com",
+            "Another Admin",
+            User.Role.ADMIN,
+            User.Status.ACTIVE,
+        )
+        self.client.force_login(self.admin)
+
+        self.client.post(self._url("suspend_shop_owner", self.admin))
+        self.client.post(
+            self._url("suspend_shop_owner", another_admin)
+        )
+
+        self.admin.refresh_from_db()
+        another_admin.refresh_from_db()
+        self.assertEqual(self.admin.status, User.Status.ACTIVE)
+        self.assertEqual(another_admin.status, User.Status.ACTIVE)
+
+    def test_csrf_is_enforced_for_both_actions(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.admin)
+
+        suspend_response = csrf_client.post(
+            self._url("suspend_shop_owner", self.owner)
+        )
+        reactivate_response = csrf_client.post(
+            self._url("reactivate_shop_owner", self.suspended_owner)
+        )
+
+        self.assertEqual(suspend_response.status_code, 403)
+        self.assertEqual(reactivate_response.status_code, 403)
+
+        self.owner.refresh_from_db()
+        self.suspended_owner.refresh_from_db()
+        self.assertEqual(self.owner.status, User.Status.ACTIVE)
+        self.assertEqual(
+            self.suspended_owner.status,
+            User.Status.SUSPENDED,
+        )

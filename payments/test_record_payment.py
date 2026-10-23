@@ -78,6 +78,13 @@ class RecordPaymentTests(TestCase):
                 "order_pk": self.order.pk,
             },
         )
+        self.order_detail_url = reverse(
+            "orders:order-detail",
+            kwargs={
+                "shop_pk": self.shop.pk,
+                "order_pk": self.order.pk,
+            },
+        )
 
         self.tracking_url = reverse(
             "track_order",
@@ -305,6 +312,107 @@ class RecordPaymentTests(TestCase):
         self.assertFalse(
             Payment.objects.filter(order=self.order).exists()
         )
+
+    def test_payment_form_shows_order_total_and_checkout_method(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.order_detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            (
+                '<strong id="payment-order-total">'
+                "15.00 USD"
+                "</strong>"
+            ),
+            html=True,
+        )
+        self.assertContains(
+            response,
+            (
+                '<strong id="payment-checkout-method">'
+                "Cash"
+                "</strong>"
+            ),
+            html=True,
+        )
+
+    def test_payment_form_is_prefilled_with_order_total(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.order_detail_url)
+
+        payment_form = response.context["payment_form"]
+
+        self.assertEqual(
+            payment_form.initial["amount"],
+            Decimal("15.00"),
+        )
+        self.assertEqual(
+            payment_form.initial["currency"],
+            Order.Currency.USD,
+        )
+        self.assertEqual(
+            payment_form.initial["method"],
+            self.method,
+        )
+
+    def test_cross_currency_expected_amount_uses_fx_snapshot(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.order_detail_url)
+
+        self.assertEqual(
+            response.context["expected_payment_amounts"]["LBP"],
+            "1350000.00",
+        )
+        self.assertContains(
+            response,
+            'data-expected-lbp="1350000.00"',
+        )
+
+        self.order.items_total = Decimal("1350000.00")
+        self.order.total = Decimal("1350000.00")
+        self.order.currency = Order.Currency.LBP
+        self.order.save(
+            update_fields=[
+                "items_total",
+                "total",
+                "currency",
+            ]
+        )
+
+        response = self.client.get(self.order_detail_url)
+
+        self.assertEqual(
+            response.context["expected_payment_amounts"]["USD"],
+            "15.00",
+        )
+        self.assertContains(
+            response,
+            'data-expected-usd="15.00"',
+        )
+
+    def test_order_detail_handles_non_positive_fx_rate(self):
+        Order.objects.filter(pk=self.order.pk).update(
+            currency=Order.Currency.LBP,
+            fx_rate_snapshot=Decimal("0.00"),
+        )
+        self.order.refresh_from_db()
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(self.order_detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["expected_payment_amounts"],
+            {
+                Order.Currency.LBP: "15.00",
+            },
+        )
+        self.assertContains(response, "15.00 LBP")
     def test_non_owner_receives_404(self):
         other_owner = User.objects.create_user(
             email="other-owner@example.com",

@@ -53,6 +53,12 @@ Task documentation is organized by sprint under `docs/tasks/`.
 - [SCRUM-77 — Order Cancellation Service](tasks/sprint-5/SCRUM-77-order-cancellation.md)
 - [SCRUM-78 — Record Payment](tasks/sprint-5/SCRUM-78-record-payment.md)
 
+#### Sprint 6
+
+- [SCRUM-95 — Low-Stock Notifications](tasks/sprint-6/SCRUM-95-low-stock-notifications.md)
+- [SCRUM-87 — Invoice PDF Download](tasks/sprint-6/SCRUM-87-invoice-pdf.md)
+- [SCRUM-96 — Record Payment Form Expected Amount](tasks/sprint-6/SCRUM-96-expected-payment-amount.md)
+
 ## Documentation structure
 
 ```text
@@ -68,7 +74,8 @@ docs/
     ├── sprint-2/
     ├── sprint-3/
     ├── sprint-4/
-    └── sprint-5/
+    ├── sprint-5/
+    └── sprint-6/
 ```
 
 Shared files such as `requirements.md`, `architecture.md`, `database.md`, and `api.md` describe the current project as a whole.

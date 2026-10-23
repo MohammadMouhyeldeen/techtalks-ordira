@@ -1,3 +1,58 @@
-from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, F, Max
+from django.shortcuts import get_object_or_404, render
 
-# Create your views here.
+from shops.models import Shop
+
+from .models import Customer
+from .services import outstanding_balances, outstanding_orders
+
+
+def _get_owner_shop(request, shop_pk):
+    return get_object_or_404(
+        Shop,
+        pk=shop_pk,
+        owner=request.user,
+    )
+
+
+@login_required
+def customer_list(request, shop_pk):
+    shop = _get_owner_shop(request, shop_pk)
+
+    customers = (
+        Customer.objects
+        .filter(shop=shop)
+        .annotate(
+            order_count=Count("orders"),
+            last_order_at=Max("orders__created_at"),
+        )
+        .order_by(F("last_order_at").desc(nulls_last=True), "full_name")
+    )
+
+    for customer in customers:
+        customer.outstanding_balances = outstanding_balances(
+            outstanding_orders(customer)
+        )
+
+    return render(request, "customers/customer_list.html", {
+        "shop": shop,
+        "customers": customers,
+    })
+
+
+@login_required
+def customer_detail(request, shop_pk, customer_pk):
+    shop = _get_owner_shop(request, shop_pk)
+    customer = get_object_or_404(Customer, pk=customer_pk, shop=shop)
+
+    orders = customer.orders.order_by("-created_at")
+    customer_outstanding_orders = list(outstanding_orders(customer))
+
+    return render(request, "customers/customer_detail.html", {
+        "shop": shop,
+        "customer": customer,
+        "orders": orders,
+        "outstanding_balances": outstanding_balances(customer_outstanding_orders),
+        "outstanding_order_ids": {o.pk for o in customer_outstanding_orders},
+    })
